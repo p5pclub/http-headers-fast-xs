@@ -26,7 +26,7 @@ BOOT:
     MY_CXT.standard_case = get_hv( "HTTP::Headers::Fast::standard_case", 0 );
     MY_CXT.translate     = hv_fetch(
         gv_stashpvn( "HTTP::Headers::Fast", 19, 0 ),
-        "translate_underscore",
+        "TRANSLATE_UNDERSCORE",
         20,
         0
     );
