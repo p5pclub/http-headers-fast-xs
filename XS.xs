@@ -26,7 +26,7 @@ BOOT:
     MY_CXT.standard_case = get_hv( "HTTP::Headers::Fast::standard_case", 0 );
     MY_CXT.translate     = hv_fetch(
         gv_stashpvn( "HTTP::Headers::Fast", 19, 0 ),
-        "TRANSLATE_UNDERSCORE",
+        "translate_underscore",
         20,
         0
     );
@@ -36,7 +36,7 @@ char *
 _standardize_field_name( char *field )
     PREINIT:
         SV   **cache_field;
-        SV   *TRANSLATE_UNDERSCORE;
+        SV   *translate_underscore;
         SV   **standard_case_val;
         char *orig;
         int  i;
@@ -45,13 +45,13 @@ _standardize_field_name( char *field )
         dMY_CXT;
     CODE:
         /* underscores to dashes */
-        TRANSLATE_UNDERSCORE = GvSV( *MY_CXT.translate );
+        translate_underscore = GvSV( *MY_CXT.translate );
 
-        if (!TRANSLATE_UNDERSCORE)
-            croak("$TRANSLATE_UNDERSCORE variable does not exist");
+        if (!translate_underscore)
+            croak("$translate_underscore variable does not exist");
 
         len = strlen(field);
-        if ( SvOK(TRANSLATE_UNDERSCORE) && SvTRUE(TRANSLATE_UNDERSCORE) )
+        if ( SvOK(translate_underscore) && SvTRUE(translate_underscore) )
             for ( i = 0; i < len; i++ )
                 if ( field[i] == '_' )
                     field[i] = '-';
