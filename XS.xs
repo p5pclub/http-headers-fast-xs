@@ -9,7 +9,6 @@
 #define MY_CXT_KEY "HTTP::Headers::Fast::XS::_guts" XS_VERSION
 
 typedef struct {
-    HV *cache;
     HV *standard_case;
     SV **translate;
 } my_cxt_t;
@@ -22,7 +21,6 @@ PROTOTYPES: DISABLE
 BOOT:
 {
     MY_CXT_INIT;
-    MY_CXT.cache         = newHV();
     MY_CXT.standard_case = get_hv( "HTTP::Headers::Fast::standard_case", 0 );
     MY_CXT.translate     = hv_fetch(
         gv_stashpvn( "HTTP::Headers::Fast", 19, 0 ),
@@ -35,7 +33,6 @@ BOOT:
 char *
 _standardize_field_name( char *field )
     PREINIT:
-        SV   **cache_field;
         SV   *translate_underscore;
         SV   **standard_case_val;
         char *orig;
@@ -55,13 +52,6 @@ _standardize_field_name( char *field )
             for ( i = 0; i < len; i++ )
                 if ( field[i] == '_' )
                     field[i] = '-';
-
-        /* check the cache */
-        cache_field = hv_fetch( MY_CXT.cache, field, len, 0 );
-        if ( cache_field && SvOK(*cache_field) ) {
-            XSRETURN_PV( SvPV_nolen(*cache_field) );
-            return;
-        }
 
         /* make a copy to represent the original one */
         orig = (char *) malloc(len);
@@ -97,7 +87,6 @@ _standardize_field_name( char *field )
             *standard_case_val = newSVpv( orig, len );
         }
 
-        hv_store( MY_CXT.cache, orig, len, newSVpv(field,len), 0 );
         free(orig);
         RETVAL = field;
     OUTPUT: RETVAL
