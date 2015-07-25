@@ -12,6 +12,9 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 *HTTP::Headers::Fast::_standardize_field_name =
     *HTTP::Headers::Fast::XS::_standardize_field_name;
 
+*HTTP::Headers::Fast::push_header =
+    *HTTP::Headers::Fast::XS::push_header;
+
 1;
 
 __END__
