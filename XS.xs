@@ -30,6 +30,58 @@ BOOT:
     );
 }
 
+#define TRANSLATE_UNDERSCORE(field)                                       \
+    STMT_START {                                                          \
+        /* underscores to dashes */                                       \
+        translate_underscore = GvSV( *MY_CXT.translate );                 \
+                                                                          \
+        if (!translate_underscore)                                        \
+            croak("$translate_underscore variable does not exist");       \
+                                                                          \
+        len = strlen(field);                                              \
+        if ( SvOK(translate_underscore) && SvTRUE(translate_underscore) ) \
+            for ( i = 0; i < len; i++ )                                   \
+                if ( field[i] == '_' )                                    \
+                    field[i] = '-';                                       \
+    } STMT_END;
+
+#define HANDLE_STANDARD_CASE( field, len )                       \
+    STMT_START {                                                 \
+        /* make a copy to represent the original one */          \
+        orig = (char *) alloca(len);                             \
+        my_strlcpy( orig, field, len + 1 );                      \
+                                                                 \
+        /* lc */                                                 \
+        for ( i = 0; i < len; i++ )                              \
+            field[i] = tolower( field[i] );                      \
+                                                                 \
+        /* uc first char after word boundary */                  \
+        standard_case_val = hv_fetch(                            \
+            MY_CXT.standard_case, field, len, 1                  \
+        );                                                       \
+                                                                 \
+        if (!standard_case_val)                                  \
+            croak("hv_fetch() failed. This should not happen."); \
+                                                                 \
+        if ( !SvOK(*standard_case_val) ) {                       \
+            word_boundary = true;                                \
+                                                                 \
+            for (i = 0; i < len; i++ ) {                         \
+                if ( ! isWORDCHAR( orig[i] ) ) {                 \
+                    word_boundary = true;                        \
+                    continue;                                    \
+                }                                                \
+                                                                 \
+                if (word_boundary) {                             \
+                    orig[i] = toupper( orig[i] );                \
+                    word_boundary = false;                       \
+                }                                                \
+            }                                                    \
+                                                                 \
+            *standard_case_val = newSVpv( orig, len );           \
+        }                                                        \
+    } STMT_END;
+
 char *
 _standardize_field_name( char *field )
     PREINIT:
@@ -41,51 +93,7 @@ _standardize_field_name( char *field )
         bool word_boundary;
         dMY_CXT;
     CODE:
-        /* underscores to dashes */
-        translate_underscore = GvSV( *MY_CXT.translate );
-
-        if (!translate_underscore)
-            croak("$translate_underscore variable does not exist");
-
-        len = strlen(field);
-        if ( SvOK(translate_underscore) && SvTRUE(translate_underscore) )
-            for ( i = 0; i < len; i++ )
-                if ( field[i] == '_' )
-                    field[i] = '-';
-
-        /* make a copy to represent the original one */
-        orig = (char *) alloca(len);
-        my_strlcpy( orig, field, len + 1 );
-
-        /* lc */
-        for ( i = 0; i < len; i++ )
-            field[i] = tolower( field[i] );
-
-        /* uc first char after word boundary */
-        standard_case_val = hv_fetch(
-            MY_CXT.standard_case, field, len, 1
-        );
-
-        if (!standard_case_val)
-            croak("hv_fetch() failed. This should not happen.");
-
-        if ( !SvOK(*standard_case_val) ) {
-            word_boundary = true;
-
-            for (i = 0; i < len; i++ ) {
-                if ( ! isWORDCHAR( orig[i] ) ) {
-                    word_boundary = true;
-                    continue;
-                }
-
-                if (word_boundary) {
-                    orig[i] = toupper( orig[i] );
-                    word_boundary = false;
-                }
-            }
-
-            *standard_case_val = newSVpv( orig, len );
-        }
-
+        TRANSLATE_UNDERSCORE(field);
+        HANDLE_STANDARD_CASE(field, len);
         RETVAL = field;
     OUTPUT: RETVAL
