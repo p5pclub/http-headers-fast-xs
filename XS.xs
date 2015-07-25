@@ -137,7 +137,6 @@ push_header( SV *self, ... )
             if ( ! SvOK(*h) ) {
                 *h = (SV *) newAV();
             } else if ( SvTYPE(*h) != SVt_RV ) {
-                warn("TYPE: %d\n", SvTYPE(*h));
                 h_copy = newSVsv(*h);
                 *h = (SV *) newAV();
                 av_push( (AV *)*h, h_copy );

@@ -10,8 +10,6 @@ our $TRANSLATE_UNDERSCORE = 1;
 eval {
     require XSLoader;
     XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
-    *_standardize_field_name =
-        *HTTP::Headers::Fast::XS::_standardize_field_name;
 };
 
 # "Good Practice" order of HTTP message headers:
