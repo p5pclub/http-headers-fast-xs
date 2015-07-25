@@ -7,10 +7,7 @@ use Carp ();
 our $VERSION = '0.18';
 our $TRANSLATE_UNDERSCORE = 1;
 
-eval {
-    require XSLoader;
-    XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
-};
+eval { require HTTP::Headers::Fast::XS };
 
 # "Good Practice" order of HTTP message headers:
 #    - General-Headers
