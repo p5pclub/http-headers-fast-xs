@@ -98,7 +98,7 @@ _standardize_field_name( char *field )
         RETVAL = field;
     OUTPUT: RETVAL
 
-AV *
+void
 push_header( SV *self, ... )
     PREINIT:
         /* variables for standardization */
@@ -147,6 +147,3 @@ push_header( SV *self, ... )
             else
                 av_push( (AV *) *h, val );
         }
-
-        RETVAL = newAV();
-    OUTPUT: RETVAL
