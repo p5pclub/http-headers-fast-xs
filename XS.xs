@@ -114,7 +114,7 @@ push_header( SV *self, ... )
         SV   *val;
         char *found_colon;
         SV   **h;
-        SV   *h_copy;
+        AV   *h_copy;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
@@ -135,15 +135,15 @@ push_header( SV *self, ... )
                 croak("hv_fetch() failed. This should not happen."); \
 
             if ( ! SvOK(*h) ) {
-                *h = (SV *) newAV();
-            } else if ( SvTYPE(*h) != SVt_RV ) {
-                h_copy = newSVsv(*h);
-                *h = (SV *) newAV();
-                av_push( (AV *)*h, h_copy );
+                *h = newRV_noinc( (SV *) newAV() );
+            } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+                h_copy = newAV();
+                av_push( h_copy, newSVsv(*h) );
+                *h = newRV_noinc( (SV *)h_copy );
             }
 
             if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV )
-                av_push( (AV *) *h, newSVsv( SvRV(val) ) );
+                av_push( (AV *) SvRV(*h), newSVsv( SvRV(val) ) );
             else
-                av_push( (AV *) *h, val );
+                av_push( (AV *) SvRV(*h), val );
         }
