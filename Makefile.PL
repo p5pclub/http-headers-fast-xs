@@ -13,6 +13,7 @@ WriteMakefile(
     AUTHOR         => 'Sawyer X (xsawyerx@cpan.org)',
     LIBS           => [''],
     DEFINE         => '',
+    CCFLAGS        => '-Wall',
     INC            => '-I.',
     #OBJECT         => '$(O_FILES)',
 );
