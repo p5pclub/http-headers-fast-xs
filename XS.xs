@@ -15,8 +15,7 @@ typedef struct {
 
 START_MY_CXT;
 
-char *translate_underscore(char *field, int len) {
-    dTHX;
+char *translate_underscore(pTHX_ char *field, int len) {
     dMY_CXT;
     int i;
     SV *translate = GvSV( *MY_CXT.translate );
@@ -32,8 +31,7 @@ char *translate_underscore(char *field, int len) {
 };
 
 
-void handle_standard_case(char *field, int len) {
-    dTHX;
+void handle_standard_case(pTHX_ char *field, int len) {
     dMY_CXT;
     char *orig;
     bool word_boundary;
@@ -96,8 +94,8 @@ _standardize_field_name(SV *field)
         STRLEN len;
     CODE:
         f = SvPV(field, len);
-        translate_underscore(f, len);
-        handle_standard_case(f, len);
+        translate_underscore(aTHX_ f, len);
+        handle_standard_case(aTHX_ f, len);
         RETVAL = f;
     OUTPUT: RETVAL
 
@@ -124,8 +122,8 @@ push_header( SV *self, ... )
             /* leading ':' means "don't standardize" */
             found_colon = index( field, ':' );
             if ( found_colon == NULL || found_colon != 0 ) {
-                translate_underscore(field, len);
-                handle_standard_case(field, len);
+                translate_underscore(aTHX_ field, len);
+                handle_standard_case(aTHX_ field, len);
             }
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
