@@ -114,7 +114,9 @@ push_header( SV *self, ... )
         SV   *val;
         char *found_colon;
         SV   **h;
+        SV   **a_value;
         AV   *h_copy;
+        int  top_index;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
@@ -125,9 +127,11 @@ push_header( SV *self, ... )
 
             /* leading ':' means "don't standardize" */
             found_colon = index( field, ':' );
-            if ( found_colon == NULL || found_colon != 0 ) {
+            if ( found_colon == NULL ) {
                 TRANSLATE_UNDERSCORE(field);
                 HANDLE_STANDARD_CASE(field, len);
+            } else {
+                len = strlen(field);
             }
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
@@ -137,13 +141,19 @@ push_header( SV *self, ... )
             if ( ! SvOK(*h) ) {
                 *h = newRV_noinc( (SV *) newAV() );
             } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
-                h_copy = newAV();
-                av_push( h_copy, newSVsv(*h) );
+                h_copy = av_make( 1, h );
                 *h = newRV_noinc( (SV *)h_copy );
             }
 
-            if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV )
-                av_push( (AV *) SvRV(*h), newSVsv( SvRV(val) ) );
-            else
+            if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+                h_copy = (AV *) SvRV(val);
+                top_index = av_len(h_copy);
+                for ( i = 0; i <= top_index; i++ ) {
+                    a_value = av_fetch( h_copy, i, 0 );
+                    if (a_value)
+                        av_push( (AV *) SvRV(*h), *a_value );
+                }
+            } else {
                 av_push( (AV *) SvRV(*h), val );
+            }
         }
