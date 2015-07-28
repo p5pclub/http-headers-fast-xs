@@ -112,7 +112,6 @@ push_header( SV *self, ... )
 
         char *field;
         SV   *val;
-        char *found_colon;
         SV   **h;
         SV   **a_value;
         AV   *h_copy;
@@ -126,8 +125,7 @@ push_header( SV *self, ... )
             val   = newSVsv( ST( i + 1 ) );
 
             /* leading ':' means "don't standardize" */
-            found_colon = index( field, ':' );
-            if ( found_colon == NULL ) {
+            if ( field[0] != ':' ) {
                 TRANSLATE_UNDERSCORE(field);
                 HANDLE_STANDARD_CASE(field, len);
             } else {
