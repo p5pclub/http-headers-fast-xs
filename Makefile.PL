@@ -24,8 +24,9 @@ sub cflags {
     my $cflags = $self->SUPER::cflags(@_);
     my @cflags = split /\n/, $cflags;
 
+    $self->{CCFLAGS} .= ' -Wall';
     foreach (@cflags) {
-        $_ = "CCFLAGS = $self->{CCFLAGS} -Wall" if /^CCFLAGS/;
+        $_ = "CCFLAGS = $self->{CCFLAGS}" if /^CCFLAGS/;
     }
     return $self->{CFLAGS} = join("\n", @cflags) . "\n";
 }
