@@ -30,7 +30,7 @@ BOOT:
     );
 }
 
-#define TRANSLATE_UNDERSCORE(field)                                       \
+#define TRANSLATE_UNDERSCORE(field,len)                                   \
     STMT_START {                                                          \
         /* underscores to dashes */                                       \
         translate_underscore = GvSV( *MY_CXT.translate );                 \
@@ -38,7 +38,6 @@ BOOT:
         if (!translate_underscore)                                        \
             croak("$translate_underscore variable does not exist");       \
                                                                           \
-        len = strlen(field);                                              \
         if ( SvOK(translate_underscore) && SvTRUE(translate_underscore) ) \
             for ( i = 0; i < len; i++ )                                   \
                 if ( field[i] == '_' )                                    \
@@ -93,7 +92,8 @@ _standardize_field_name( char *field )
         bool word_boundary;
         dMY_CXT;
     CODE:
-        TRANSLATE_UNDERSCORE(field);
+        len = strlen(field);
+        TRANSLATE_UNDERSCORE(field, len);
         HANDLE_STANDARD_CASE(field, len);
         RETVAL = field;
     OUTPUT: RETVAL
@@ -123,13 +123,12 @@ push_header( SV *self, ... )
         for ( i = 1; i < items; i += 2 ) {
             field = SvPVX( ST(i) );
             val   = newSVsv( ST( i + 1 ) );
+            len   = SvCUR( ST(i) );
 
             /* leading ':' means "don't standardize" */
             if ( field[0] != ':' ) {
-                TRANSLATE_UNDERSCORE(field);
+                TRANSLATE_UNDERSCORE(field, len);
                 HANDLE_STANDARD_CASE(field, len);
-            } else {
-                len = strlen(field);
             }
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
