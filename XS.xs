@@ -15,7 +15,7 @@ typedef struct {
 
 START_MY_CXT;
 
-char *translate_underscore(pTHX_ char *field, int len) {
+void translate_underscore(pTHX_ char *field, int len) {
     dMY_CXT;
     int i;
     SV *translate = GvSV( *MY_CXT.translate );
@@ -27,7 +27,6 @@ char *translate_underscore(pTHX_ char *field, int len) {
         for ( i = 0; i < len; i++ )
             if ( field[i] == '_' )
                 field[i] = '-';
-    return field;
 };
 
 
@@ -57,15 +56,11 @@ void handle_standard_case(pTHX_ char *field, int len) {
         word_boundary = true;
 
         for (i = 0; i < len; i++ ) {
-            if ( ! isWORDCHAR( orig[i] ) ) {
-                word_boundary = true;
-                continue;
-            }
-
             if (word_boundary) {
                 orig[i] = toupper( orig[i] );
-                word_boundary = false;
             }
+
+            word_boundary = !isWORDCHAR( orig[i] );
         }
 
         *standard_case_val = newSVpv( orig, len );
