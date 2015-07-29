@@ -126,7 +126,7 @@ push_header( SV *self, ... )
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
             if ( h == NULL )
-                croak("hv_fetch() failed. This should not happen."); \
+                croak("hv_fetch() failed. This should not happen.");
 
             if ( ! SvOK(*h) ) {
                 *h = newRV_noinc( (SV *) newAV() );
