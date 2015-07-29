@@ -105,12 +105,11 @@ push_header( SV *self, ... )
         /* variables for standardization */
         int  i;
         STRLEN  len;
-
+        int top_index;
         char *field;
         SV   *val;
-        char *found_colon;
-        SV   **h;
-        SV   *h_copy;
+        SV   **h, **a_value;
+        AV   *h_copy;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
@@ -120,26 +119,32 @@ push_header( SV *self, ... )
             val   = newSVsv( ST( i + 1 ) );
 
             /* leading ':' means "don't standardize" */
-            found_colon = index( field, ':' );
-            if ( found_colon == NULL || found_colon != 0 ) {
+            if ( field[0] != ':' ) {
                 translate_underscore(aTHX_ field, len);
                 handle_standard_case(aTHX_ field, len);
             }
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
             if ( h == NULL )
-                croak("hv_fetch() failed. This should not happen.");
+                croak("hv_fetch() failed. This should not happen."); \
 
             if ( ! SvOK(*h) ) {
-                *h = (SV *) newAV();
-            } else if ( SvTYPE(*h) != SVt_RV ) {
-                h_copy = newSVsv(*h);
-                *h = (SV *) newAV();
-                av_push( (AV *)*h, h_copy );
+                *h = newRV_noinc( (SV *) newAV() );
+            } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+                h_copy = av_make( 1, h );
+                *h = newRV_noinc( (SV *)h_copy );
             }
 
-            if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV )
-                av_push( (AV *) *h, newSVsv( SvRV(val) ) );
-            else
-                av_push( (AV *) *h, val );
-        }
+            if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+                h_copy = (AV *) SvRV(val);
+                top_index = av_len(h_copy);
+                for ( i = 0; i <= top_index; i++ ) {
+                    a_value = av_fetch( h_copy, i, 0 );
+                    if (a_value)
+                        av_push( (AV *) SvRV(*h), *a_value );
+                }
+            } else {
+                av_push( (AV *) SvRV(*h), val );
+            }
+    }
+
