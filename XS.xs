@@ -141,5 +141,43 @@ push_header( SV *self, ... )
             } else {
                 av_push( (AV *) SvRV(*h), val );
             }
-    }
+        }
+
+
+void
+_header_get( SV *self, SV *field_name, ... )
+    PREINIT:
+        char *field;
+        STRLEN len;
+        SV **h, **a_value;
+        AV * av_entry;
+        int top_index, i;
+        bool skip_standardize;
+    PPCODE:
+        field = SvPV(field_name, len);
+        skip_standardize = ( items == 3 ) && SvTRUE(ST(3));
+        if (!skip_standardize && field[0] != ':'){
+            translate_underscore(aTHX_ field, len);
+            handle_standard_case(aTHX_ field, len);
+        }
+
+        h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
+        if ( h == NULL || !SvOK(*h) ){
+            XSRETURN_EMPTY;
+        } else if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV){
+            av_entry = (AV *) SvRV(*h);
+            top_index = av_len(av_entry);
+            EXTEND(SP, top_index);
+            for (i = 0; i <= top_index; i++){
+                a_value = av_fetch( av_entry, i, 0 );
+                if ( !a_value ){
+                    croak("av_fetch() failed. This should not happen.");
+                }
+                PUSHs(sv_2mortal(newSVsv(*a_value)));
+            }
+        } else {
+            EXTEND(SP, 1);
+            PUSHs(sv_2mortal(newSVsv(*h)));
+        }
+
 
