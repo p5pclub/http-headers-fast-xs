@@ -15,6 +15,58 @@ typedef struct {
 
 START_MY_CXT;
 
+void translate_underscore(pTHX_ char *field, int len) {
+    dMY_CXT;
+    int i;
+    SV *translate = GvSV( *MY_CXT.translate );
+
+    if (!translate)
+        croak("$translate_underscore variable does not exist");
+
+    if ( SvOK(translate) && SvTRUE(translate) )
+        for ( i = 0; i < len; i++ )
+            if ( field[i] == '_' )
+                field[i] = '-';
+};
+
+
+void handle_standard_case(pTHX_ char *field, int len) {
+    dMY_CXT;
+    char *orig;
+    bool word_boundary;
+    int  i;
+    SV   **standard_case_val;
+
+    /* make a copy to represent the original one */
+    orig = (char *) alloca(len);
+    my_strlcpy( orig, field, len + 1 );
+    /* lc */
+    for ( i = 0; i < len; i++ )
+        field[i] = tolower( field[i] );
+
+    /* uc first char after word boundary */
+    standard_case_val = hv_fetch(
+        MY_CXT.standard_case, field, len, 1
+    );
+
+    if (!standard_case_val)
+        croak("hv_fetch() failed. This should not happen.");
+
+    if ( !SvOK(*standard_case_val) ) {
+        word_boundary = true;
+
+        for (i = 0; i < len; i++ ) {
+            if (word_boundary) {
+                orig[i] = toupper( orig[i] );
+            }
+
+            word_boundary = !isWORDCHAR( orig[i] );
+        }
+
+        *standard_case_val = newSVpv( orig, len );
+    }
+}
+
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
@@ -30,110 +82,47 @@ BOOT:
     );
 }
 
-#define TRANSLATE_UNDERSCORE(field,len)                                   \
-    STMT_START {                                                          \
-        /* underscores to dashes */                                       \
-        translate_underscore = GvSV( *MY_CXT.translate );                 \
-                                                                          \
-        if (!translate_underscore)                                        \
-            croak("$translate_underscore variable does not exist");       \
-                                                                          \
-        if ( SvOK(translate_underscore) && SvTRUE(translate_underscore) ) \
-            for ( i = 0; i < len; i++ )                                   \
-                if ( field[i] == '_' )                                    \
-                    field[i] = '-';                                       \
-    } STMT_END;
-
-#define HANDLE_STANDARD_CASE( field, len )                       \
-    STMT_START {                                                 \
-        /* make a copy to represent the original one */          \
-        orig = (char *) alloca(len);                             \
-        my_strlcpy( orig, field, len + 1 );                      \
-                                                                 \
-        /* lc */                                                 \
-        for ( i = 0; i < len; i++ )                              \
-            field[i] = tolower( field[i] );                      \
-                                                                 \
-        /* uc first char after word boundary */                  \
-        standard_case_val = hv_fetch(                            \
-            MY_CXT.standard_case, field, len, 1                  \
-        );                                                       \
-                                                                 \
-        if (!standard_case_val)                                  \
-            croak("hv_fetch() failed. This should not happen."); \
-                                                                 \
-        if ( !SvOK(*standard_case_val) ) {                       \
-            word_boundary = true;                                \
-                                                                 \
-            for (i = 0; i < len; i++ ) {                         \
-                if ( ! isWORDCHAR( orig[i] ) ) {                 \
-                    word_boundary = true;                        \
-                    continue;                                    \
-                }                                                \
-                                                                 \
-                if (word_boundary) {                             \
-                    orig[i] = toupper( orig[i] );                \
-                    word_boundary = false;                       \
-                }                                                \
-            }                                                    \
-                                                                 \
-            *standard_case_val = newSVpv( orig, len );           \
-        }                                                        \
-    } STMT_END;
-
 char *
-_standardize_field_name( char *field )
+_standardize_field_name(SV *field)
     PREINIT:
-        SV   *translate_underscore;
-        SV   **standard_case_val;
-        char *orig;
-        int  i;
-        int  len;
-        bool word_boundary;
-        dMY_CXT;
+        char *field_name;
+        STRLEN len;
     CODE:
-        len = strlen(field);
-        TRANSLATE_UNDERSCORE(field, len);
-        HANDLE_STANDARD_CASE(field, len);
-        RETVAL = field;
+        field_name = SvPV(field, len);
+        translate_underscore(aTHX_ field_name, len);
+        handle_standard_case(aTHX_ field_name, len);
+        RETVAL = field_name;
     OUTPUT: RETVAL
 
 void
 push_header( SV *self, ... )
     PREINIT:
         /* variables for standardization */
-        SV   *translate_underscore;
-        SV   **standard_case_val;
-        char *orig;
-        int  i;
-        int  len;
-        bool word_boundary;
-        dMY_CXT;
-
-        char *field;
-        SV   *val;
-        SV   **h;
-        SV   **a_value;
-        AV   *h_copy;
-        int  top_index;
+        int    i;
+        STRLEN len;
+        int    top_index;
+        char   *field;
+        SV     *val;
+        SV     **h, **a_value;
+        AV     *h_copy;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
 
         for ( i = 1; i < items; i += 2 ) {
-            field = SvPVX( ST(i) );
+            field = SvPV(ST(i), len);
             val   = newSVsv( ST( i + 1 ) );
             len   = SvCUR( ST(i) );
 
             /* leading ':' means "don't standardize" */
             if ( field[0] != ':' ) {
-                TRANSLATE_UNDERSCORE(field, len);
-                HANDLE_STANDARD_CASE(field, len);
+                translate_underscore(aTHX_ field, len);
+                handle_standard_case(aTHX_ field, len);
             }
 
             h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
             if ( h == NULL )
-                croak("hv_fetch() failed. This should not happen."); \
+                croak("hv_fetch() failed. This should not happen.");
 
             if ( ! SvOK(*h) ) {
                 *h = newRV_noinc( (SV *) newAV() );

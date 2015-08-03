@@ -16,3 +16,17 @@ WriteMakefile(
     INC            => '-I.',
     #OBJECT         => '$(O_FILES)',
 );
+
+# Add -Wall to CCFLAGS without overwriting the defaults
+package MY;
+sub cflags {
+    my $self   = shift;
+    my $cflags = $self->SUPER::cflags(@_);
+    my @cflags = split /\n/, $cflags;
+
+    $self->{CCFLAGS} .= ' -Wall';
+    foreach (@cflags) {
+        $_ = "CCFLAGS = $self->{CCFLAGS}" if /^CCFLAGS/;
+    }
+    return $self->{CFLAGS} = join("\n", @cflags) . "\n";
+}
