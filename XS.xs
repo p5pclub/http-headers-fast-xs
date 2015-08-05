@@ -101,6 +101,36 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     return found;
 }
 
+void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val){
+    SV **h;
+    AV *h_copy;
+    SV **a_value;
+    int i, top_index;
+
+    h = hv_fetch( self, field, len, 1 );
+    if ( h == NULL )
+        croak("hv_fetch() failed. This should not happen.");
+
+    if ( ! SvOK(*h) ) {
+        *h = newRV_noinc( (SV *) newAV() );
+    } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+        h_copy = av_make( 1, h );
+        *h = newRV_noinc( (SV *)h_copy );
+    }
+
+    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+        h_copy = (AV *) SvRV(val);
+        top_index = av_len(h_copy);
+        for ( i = 0; i <= top_index; i++ ) {
+            a_value = av_fetch( h_copy, i, 0 );
+            if (a_value)
+                av_push( (AV *) SvRV(*h), *a_value );
+        }
+    } else {
+        av_push( (AV *) SvRV(*h), val );
+    }
+}
+
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
@@ -131,14 +161,10 @@ _standardize_field_name(SV *field)
 void
 push_header( SV *self, ... )
     PREINIT:
-        /* variables for standardization */
         int  i;
         STRLEN  len;
-        int  top_index;
         char *field;
         SV   *val;
-        SV   **h, **a_value;
-        AV   *h_copy;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
@@ -152,30 +178,8 @@ push_header( SV *self, ... )
                 translate_underscore(aTHX_ field, len);
                 handle_standard_case(aTHX_ field, len);
             }
-
-            h = hv_fetch( (HV *) SvRV(self), field, len, 1 );
-            if ( h == NULL )
-                croak("hv_fetch() failed. This should not happen.");
-
-            if ( ! SvOK(*h) ) {
-                *h = newRV_noinc( (SV *) newAV() );
-            } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
-                h_copy = av_make( 1, h );
-                *h = newRV_noinc( (SV *)h_copy );
-            }
-
-            if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
-                h_copy = (AV *) SvRV(val);
-                top_index = av_len(h_copy);
-                for ( i = 0; i <= top_index; i++ ) {
-                    a_value = av_fetch( h_copy, i, 0 );
-                    if (a_value)
-                        av_push( (AV *) SvRV(*h), *a_value );
-                }
-            } else {
-                av_push( (AV *) SvRV(*h), val );
-            }
-        }
+            __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
+       }
 
 
 void
@@ -233,3 +237,24 @@ _header_set(SV *self, SV *field_name, SV *val)
             hv_store( (HV *) SvRV(self), field, len, newSVsv(val), 0);
         }
 
+void
+_header_push(SV *self, SV *field_name, SV *val)
+    PREINIT:
+        char   *field;
+        STRLEN len;
+        bool   found;
+    PPCODE:
+         field = SvPV(field_name, len);
+         if (field[0] != ':'){
+                translate_underscore(aTHX_ field, len);
+                handle_standard_case(aTHX_ field, len);
+         }
+         # we are putting the decremented(with the number of input parameters) SP back in the THX
+         PUTBACK;
+
+         found = put_header_value_on_perl_stack(aTHX_ self, field, len);
+
+         # we are setting the local SP variable to the value in THX
+         SPAGAIN;
+
+        __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
