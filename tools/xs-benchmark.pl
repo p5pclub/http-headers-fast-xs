@@ -66,6 +66,22 @@ my %cases = (
             $headers->header("Content-Length", 10);
         }
     },
+    _header_push => sub {
+        my ($instance, $iterations) = @_;
+        my $headers = HTTP::Headers::Fast->new();
+        for (1..$iterations) {
+            $headers->header("Content-Length" => 10,
+                             "Content-Length" => 11,
+                             "Content-Length" => 12,
+                             "Content-Length" => 13,
+                             "Content-Length" => 14,
+                             "Content-Length" => 15,
+                             "Content-Length" => 16,
+                             "Content-Length" => 17,
+            );
+        }
+    },
+
     get_content_length => sub {
         my ($instance, $iterations) = @_;
         my $headers = HTTP::Headers::Fast->new();
