@@ -120,7 +120,7 @@ sub push_header {
             $h = [ $h ];
             $self->{$field} = $h;
         }
-    
+
         push @$h, ref $val ne 'ARRAY' ? $val : @$val;
     } else {
         while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
@@ -134,7 +134,7 @@ sub push_header {
                 $h = [ $h ];
                 $self->{$field} = $h;
             }
-    
+
             push @$h, ref $val ne 'ARRAY' ? $val : @$val;
         }
     }
