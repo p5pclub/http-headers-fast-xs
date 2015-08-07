@@ -39,10 +39,13 @@ void handle_standard_case(pTHX_ char *field, int len) {
 
     /* make a copy to represent the original one */
     orig = (char *) alloca(len + 1);
-    my_strlcpy( orig, field, len + 1 );
-    /* lc */
-    for ( i = 0; i < len; i++ )
+
+    /* copy and lc */
+    for ( i = 0; i < len; i++ ) {
+        orig[i] = field[i];
         field[i] = tolower( field[i] );
+    }
+    orig[len] = '\0';
 
     /* uc first char after word boundary */
     standard_case_val = hv_fetch(
