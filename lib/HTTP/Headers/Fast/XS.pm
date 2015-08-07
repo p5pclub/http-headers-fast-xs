@@ -15,6 +15,15 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 *HTTP::Headers::Fast::push_header =
     *HTTP::Headers::Fast::XS::push_header;
 
+*HTTP::Headers::Fast::_header_get =
+    *HTTP::Headers::Fast::XS::_header_get;
+
+*HTTP::Headers::Fast::_header_set =
+    *HTTP::Headers::Fast::XS::_header_set;
+
+#*HTTP::Headers::Fast::_header_push =
+#    *HTTP::Headers::Fast::XS::_header_push;
+
 1;
 
 __END__
