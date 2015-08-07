@@ -38,7 +38,7 @@ void handle_standard_case(pTHX_ char *field, int len) {
     SV   **standard_case_val;
 
     /* make a copy to represent the original one */
-    orig = (char *) alloca(len);
+    orig = (char *) alloca(len + 1);
     my_strlcpy( orig, field, len + 1 );
     /* lc */
     for ( i = 0; i < len; i++ )
