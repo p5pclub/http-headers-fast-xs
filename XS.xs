@@ -23,11 +23,13 @@ void translate_underscore(pTHX_ char *field, int len) {
     if (!translate)
         croak("$translate_underscore variable does not exist");
 
-    if ( SvOK(translate) && SvTRUE(translate) )
-        for ( i = 0; i < len; i++ )
-            if ( field[i] == '_' )
-                field[i] = '-';
-};
+    if ( !SvOK(translate) || !SvTRUE(translate) )
+        return;
+
+    for ( i = 0; i < len; i++ )
+        if ( field[i] == '_' )
+            field[i] = '-';
+}
 
 
 void handle_standard_case(pTHX_ char *field, int len) {
@@ -47,27 +49,27 @@ void handle_standard_case(pTHX_ char *field, int len) {
     }
     orig[len] = '\0';
 
-    /* uc first char after word boundary */
+    /* if we already have a value in the hash table, nothing to do */
     standard_case_val = hv_fetch(
         MY_CXT.standard_case, field, len, 1
     );
-
     if (!standard_case_val)
         croak("hv_fetch() failed. This should not happen.");
+    if ( SvOK(*standard_case_val) )
+        return;
 
-    if ( !SvOK(*standard_case_val) ) {
-        word_boundary = true;
-
-        for (i = 0; i < len; i++ ) {
-            if (word_boundary) {
-                orig[i] = toupper( orig[i] );
-            }
-
-            word_boundary = !isWORDCHAR( orig[i] );
+    /* uc first char after word boundary */
+    word_boundary = true;
+    for (i = 0; i < len; i++ ) {
+        if (word_boundary) {
+            orig[i] = toupper( orig[i] );
         }
 
-        *standard_case_val = newSVpv( orig, len );
+        word_boundary = !isWORDCHAR( orig[i] );
     }
+
+    /* save result in hash table */
+    *standard_case_val = newSVpv( orig, len );
 }
 
 // Returns if we store that field name or not
