@@ -21,7 +21,7 @@ void translate_underscore(pTHX_ char *field, int len) {
     SV *translate = GvSV( *MY_CXT.translate );
 
     if (!translate)
-        croak("$translate_underscore variable does not exist");
+        croak("$TRANSLATE_UNDERSCORE variable does not exist");
 
     if ( !SvOK(translate) || !SvTRUE(translate) )
         return;
