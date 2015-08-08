@@ -251,7 +251,6 @@ _header_push(SV *self, SV *field_name, SV *val)
     PREINIT:
         char   *field;
         STRLEN len;
-        bool   found;
     PPCODE:
          field = SvPV(field_name, len);
          if (field[0] != ':') {
@@ -263,7 +262,7 @@ _header_push(SV *self, SV *field_name, SV *val)
          input parameters) SP back in the THX */
          PUTBACK;
 
-         found = put_header_value_on_perl_stack(aTHX_ self, field, len);
+         put_header_value_on_perl_stack(aTHX_ self, field, len);
 
          /* we are setting the local SP variable to the value in THX */
          SPAGAIN;
