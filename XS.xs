@@ -202,12 +202,12 @@ _header_get( SV *self, SV *field_name, ... )
             handle_standard_case(aTHX_ field, len);
         }
 
-        # we are putting the decremented(with the number of input parameters) SP back in the THX
+        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
         put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-        # we are setting the local SP variable to the value in THX(it was changed inside the previous function call)
+        /* we are setting the local SP variable to the value in THX(it was changed inside the previous function call) */
         SPAGAIN;
 
 
@@ -224,18 +224,19 @@ _header_set(SV *self, SV *field_name, SV *val)
             translate_underscore(aTHX_ field, len);
             handle_standard_case(aTHX_ field, len);
         }
-        # we are putting the decremented(with the number of input parameters) SP back in the THX
+
+        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
         found = put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-        # we are setting the local SP variable to the value in THX
+        /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
 
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            # av_len == 0 here means that we have one item in av
+            /* av_len == 0 here means that we have one item in av */
             if ( SvROK(val) &&
                  SvTYPE( SvRV(val) ) == SVt_PVAV &&
                  av_len((AV *)SvRV(val)) == 0) {
@@ -257,13 +258,14 @@ _header_push(SV *self, SV *field_name, SV *val)
                 translate_underscore(aTHX_ field, len);
                 handle_standard_case(aTHX_ field, len);
          }
-         # we are putting the decremented (with the number of
-         # input parameters) SP back in the THX
+
+         /* we are putting the decremented (with the number of
+         input parameters) SP back in the THX */
          PUTBACK;
 
          found = put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-         # we are setting the local SP variable to the value in THX
+         /* we are setting the local SP variable to the value in THX */
          SPAGAIN;
 
         __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
