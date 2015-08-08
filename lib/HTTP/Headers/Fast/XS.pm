@@ -7,22 +7,27 @@ use XSLoader;
 our $VERSION = '0.001';
 
 require HTTP::Headers::Fast; # make sure it's loaded
-XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-*HTTP::Headers::Fast::_standardize_field_name =
-    *HTTP::Headers::Fast::XS::_standardize_field_name;
+if ( !defined $ENV{PERL_HTTP_HEADERS_FAST_XS}
+    || $ENV{PERL_HTTP_HEADERS_FAST_XS} )
+{
+    XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-*HTTP::Headers::Fast::push_header =
-    *HTTP::Headers::Fast::XS::push_header;
+    *HTTP::Headers::Fast::_standardize_field_name =
+        *HTTP::Headers::Fast::XS::_standardize_field_name;
 
-*HTTP::Headers::Fast::_header_get =
-    *HTTP::Headers::Fast::XS::_header_get;
+    *HTTP::Headers::Fast::push_header =
+        *HTTP::Headers::Fast::XS::push_header;
 
-*HTTP::Headers::Fast::_header_set =
-    *HTTP::Headers::Fast::XS::_header_set;
+    *HTTP::Headers::Fast::_header_get =
+        *HTTP::Headers::Fast::XS::_header_get;
 
-#*HTTP::Headers::Fast::_header_push =
-#    *HTTP::Headers::Fast::XS::_header_push;
+    *HTTP::Headers::Fast::_header_set =
+        *HTTP::Headers::Fast::XS::_header_set;
+
+    #*HTTP::Headers::Fast::_header_push =
+    #    *HTTP::Headers::Fast::XS::_header_push;
+}
 
 1;
 
@@ -56,3 +61,14 @@ Implemented methods in XS:
 =head2 _standardize_field_name
 
 This is an internal function used often.
+
+=head1 BACKEND MODULE DECISION
+
+You may set environment variable C<PERL_HTTP_HEADERS_FAST_XS> to specify
+whether or not the XS implementation should be used. For example,
+
+    BEGIN { $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0 }
+    use HTTP::Headers::Fast;
+    use HTTP::Headers::Fast::XS; # still using the default Perl implementation
+
+=cut
