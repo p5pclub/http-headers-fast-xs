@@ -8,10 +8,8 @@ use Getopt::Long qw<:config no_ignore_case>;
 
 local $| = 1;
 
-BEGIN {
-    local $ENV{'PERL_HTTP_HEADERS_FAST_XS'} = 0;
-    require HTTP::Headers::Fast;
-}
+use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
 
 my %source = (
     'Connection'     => 'close',
@@ -27,6 +25,11 @@ my %cases = (
             HTTP::Headers::Fast::_standardize_field_name('Foo-Bar')
                 for 1 .. 1e6
         },
+
+        fast_xs => sub {
+            HTTP::Headers::Fast::XS::_standardize_field_name('Foo-Bar')
+                for 1 .. 1e6
+        },
     },
 
     push_header => {
@@ -36,6 +39,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->push_header('X-Foo' => 1) for 1 .. 1e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->push_header('X-Foo' => 1) for 1 .. 1e5;
         },
@@ -48,6 +58,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e5;
         },
@@ -61,6 +78,14 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->date(1226370757);
+            $f->date for 1 .. 3e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->date(1226370757);
             $f->date for 1 .. 3e5;
@@ -74,6 +99,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->date(1226370757) for 1 .. 1e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->date(1226370757) for 1 .. 1e5;
         },
@@ -86,6 +118,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new(%source);
+            $f->scan(sub { }) for 1 .. 1e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new(%source);
             $f->scan(sub { }) for 1 .. 1e5;
         },
@@ -98,6 +137,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->header('Content-Length') for 1 .. 1e6;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->header('Content-Length') for 1 .. 1e6;
         },
@@ -110,6 +156,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->header('Content-Length' => 100) for 1 .. 1e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->header('Content-Length' => 100) for 1 .. 1e5;
         },
@@ -122,6 +175,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new;
+            $f->content_length for 1 .. 1e6;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new;
             $f->content_length for 1 .. 1e6;
         },
@@ -134,12 +194,27 @@ my %cases = (
         },
 
         fast_as_str => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
             my $f = HTTP::Headers::Fast->new(%source);
             $f->as_string for 1 .. 1e5;
         },
 
         # fast_as_str_wo
         fast_as_str_wo => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new(%source);
+            $f->as_string_without_sort for 1 .. 1e5;
+        },
+
+        fast_xs_as_str => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
+            my $f = HTTP::Headers::Fast->new(%source);
+            $f->as_string for 1 .. 1e5;
+        },
+
+        # fast_as_str_wo
+        fast_xs_as_str_wo => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new(%source);
             $f->as_string_without_sort for 1 .. 1e5;
         },
@@ -152,6 +227,13 @@ my %cases = (
         },
 
         fast => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+            my $f = HTTP::Headers::Fast->new(%source);
+            $f->as_string for 1 .. 1e5;
+        },
+
+        fast_xs => sub {
+            local $ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
             my $f = HTTP::Headers::Fast->new(%source);
             $f->as_string for 1 .. 1e5;
         },
@@ -190,30 +272,12 @@ foreach my $name ( keys %cases ) {
 
 $verbose and print "\n";
 
-require HTTP::Headers::Fast::XS;
 print "HTTP::Headers $HTTP::Headers::VERSION, "
     . "HTTP::Headers::Fast $HTTP::Headers::Fast::VERSION, "
-    . "HTTP::Headers::Fast::X $HTTP::Headers::Fast::XS::VERSION\n";
+    . "HTTP::Headers::Fast::XS $HTTP::Headers::Fast::XS::VERSION\n";
 
 foreach my $name ( sort keys %instances ) {
     my @cb_names = sort keys %{ $cases{$name} };
-
-    # add XS implementation
-    my $bench = Dumbbench->new(
-        target_rel_precision => 0.005,
-        initial_runs         => 20,
-    );
-
-    $bench->add_instances(
-        Dumbbench::Instance::PerlSub->new(
-            name => "${_}_xs",
-            code => $cases{$name}{$_},
-        )
-    ) for grep m{^fast}, @cb_names;
-
-    $bench->run;
-
-    unshift @{ $instances{$name} }, $bench->instances;
 
     my @instances = @{ $instances{$name} };
     my @col_names = map $_->{'name'}, @instances;
