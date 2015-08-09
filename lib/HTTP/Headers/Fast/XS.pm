@@ -9,23 +9,6 @@ our $VERSION = '0.001';
 
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-*HTTP::Headers::Fast::_new = *HTTP::Headers::Fast::new;
-*HTTP::Headers::Fast::new  = *HTTP::Headers::Fast::XS::new;
-
-sub new {
-    my $class = shift;
-
-    if ( !defined $ENV{PERL_HTTP_HEADERS_FAST_XS} ||
-        $ENV{PERL_HTTP_HEADERS_FAST_XS} )
-    {
-        unshift @_, 'HTTP::Headers::Fast::XS';
-        goto \&HTTP::Headers::Fast::XS::_new
-    } else {
-        unshift @_, 'HTTP::Headers::Fast';
-        goto \&HTTP::Headers::Fast::_new;
-    }
-}
-
 sub _new {
     my $class = shift;
     my $self  = $class->SUPER::_new(@_);

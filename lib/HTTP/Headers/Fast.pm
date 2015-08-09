@@ -7,13 +7,7 @@ use Carp ();
 our $VERSION = '0.18';
 our $TRANSLATE_UNDERSCORE = 1;
 
-{
-    if ( ! defined $ENV{'PERL_HTTP_HEADERS_FAST_XS'} ||
-         $ENV{'PERL_HTTP_HEADERS_FAST_XS'}
-    ) {
-        eval { require HTTP::Headers::Fast::XS };
-    }
-}
+eval { require HTTP::Headers::Fast::XS };
 
 # "Good Practice" order of HTTP message headers:
 #    - General-Headers
@@ -69,6 +63,20 @@ our %standard_case;
 }
 
 sub new {
+    my $class = shift;
+
+    if ( !defined $ENV{PERL_HTTP_HEADERS_FAST_XS} ||
+        $ENV{PERL_HTTP_HEADERS_FAST_XS} )
+    {
+        unshift @_, 'HTTP::Headers::Fast::XS';
+        goto \&HTTP::Headers::Fast::XS::_new
+    } else {
+        unshift @_, 'HTTP::Headers::Fast';
+        goto \&HTTP::Headers::Fast::_new;
+    }
+}
+
+sub _new {
     my ($class) = shift;
     my $self = bless {}, $class;
     $self->header(@_) if @_;    # set up initial headers
