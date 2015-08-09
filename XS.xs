@@ -20,8 +20,8 @@ void translate_underscore(pTHX_ char *field, int len) {
     int i;
     SV *translate = GvSV( *MY_CXT.translate );
 
-    if (!translate)
-        croak("$translate_underscore variable does not exist");
+    if (!translate || field[0] == ':')
+        croak("$TRANSLATE_UNDERSCORE variable does not exist");
 
     if ( !SvOK(translate) || !SvTRUE(translate) )
         return;
@@ -39,6 +39,13 @@ void handle_standard_case(pTHX_ char *field, int len) {
     int  i;
     SV   **standard_case_val;
 
+    /* leading ':' means "don't standardize" */
+    if ( field[0] == ':' ) {
+        return;
+    }
+
+    translate_underscore(aTHX_ field, len);
+
     /* make a copy to represent the original one */
     orig = (char *) alloca(len + 1);
 
@@ -47,14 +54,17 @@ void handle_standard_case(pTHX_ char *field, int len) {
         orig[i] = field[i];
         field[i] = tolower( field[i] );
     }
+
     orig[len] = '\0';
 
     /* if we already have a value in the hash table, nothing to do */
     standard_case_val = hv_fetch(
         MY_CXT.standard_case, field, len, 1
     );
+
     if (!standard_case_val)
         croak("hv_fetch() failed. This should not happen.");
+
     if ( SvOK(*standard_case_val) )
         return;
 
@@ -72,7 +82,7 @@ void handle_standard_case(pTHX_ char *field, int len) {
     *standard_case_val = newSVpv( orig, len );
 }
 
-// Returns if we store that field name or not
+/* Returns if we store that field name or not */
 bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
     SV   **h, **a_value;
@@ -82,34 +92,38 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
 
     h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
     if ( h == NULL || !SvOK(*h) ) {
-        // If the field is not found, don't put anything on stack -> that will return () to perl
+        /* If the field is not found, don't put anything on stack -> that will return () to perl */
         found = false;
     } else if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV) {
-        // If the value is an array, put all the values of the array on stack. This will return @$h to perl
+        /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
         av_entry = (AV *) SvRV(*h);
         top_index = av_len(av_entry);
         EXTEND(SP, top_index);
+
         for (i = 0; i <= top_index; i++) {
             a_value = av_fetch( av_entry, i, 0 );
+
             if ( !a_value ) {
                 croak("av_fetch() failed. This should not happen.");
             }
+
             PUSHs(sv_2mortal(newSVsv(*a_value)));
         }
     } else {
-        // If we have one value, just put it on stack. This will return ($h) to perl
+        /* If we have one value, just put it on stack. This will return ($h) to perl */
         EXTEND(SP, 1);
         PUSHs(sv_2mortal(newSVsv(*h)));
     }
-    // put the local SP in THX -> SP was EXTENDED
+
+    /* put the local SP in THX -> SP was EXTENDED */
     PUTBACK;
     return found;
 }
 
 void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
-    SV **h;
-    AV *h_copy;
-    SV **a_value;
+    SV  **h;
+    AV  *h_copy;
+    SV  **a_value;
     int i, top_index;
 
     h = hv_fetch( self, field, len, 1 );
@@ -126,6 +140,7 @@ void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
         h_copy = (AV *) SvRV(val);
         top_index = av_len(h_copy);
+
         for ( i = 0; i <= top_index; i++ ) {
             a_value = av_fetch( h_copy, i, 0 );
             if (a_value)
@@ -154,11 +169,10 @@ BOOT:
 char *
 _standardize_field_name(SV *field)
     PREINIT:
-        char *field_name;
+        char   *field_name;
         STRLEN len;
     CODE:
         field_name = SvPV(field, len);
-        translate_underscore(aTHX_ field_name, len);
         handle_standard_case(aTHX_ field_name, len);
         RETVAL = field_name;
     OUTPUT: RETVAL
@@ -166,10 +180,10 @@ _standardize_field_name(SV *field)
 void
 push_header( SV *self, ... )
     PREINIT:
-        int  i;
-        STRLEN  len;
-        char *field;
-        SV   *val;
+        int    i;
+        STRLEN len;
+        char   *field;
+        SV     *val;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
@@ -177,13 +191,9 @@ push_header( SV *self, ... )
         for ( i = 1; i < items; i += 2 ) {
             field = SvPV(ST(i), len);
             val   = newSVsv( ST( i + 1 ) );
-            len   = SvCUR( ST(i) );
 
-            /* leading ':' means "don't standardize" */
-            if ( field[0] != ':' ) {
-                translate_underscore(aTHX_ field, len);
-                handle_standard_case(aTHX_ field, len);
-            }
+            handle_standard_case(aTHX_ field, len);
+
             __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
        }
 
@@ -197,17 +207,15 @@ _header_get( SV *self, SV *field_name, ... )
     PPCODE:
         field = SvPV(field_name, len);
         skip_standardize = ( items == 3 ) && SvTRUE(ST(3));
-        if (!skip_standardize && field[0] != ':') {
-            translate_underscore(aTHX_ field, len);
+        if (!skip_standardize)
             handle_standard_case(aTHX_ field, len);
-        }
 
-        # we are putting the decremented(with the number of input parameters) SP back in the THX
+        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
         put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-        # we are setting the local SP variable to the value in THX(it was changed inside the previous function call)
+        /* we are setting the local SP variable to the value in THX(it was changed inside the previous function call) */
         SPAGAIN;
 
 
@@ -220,22 +228,21 @@ _header_set(SV *self, SV *field_name, SV *val)
         SV     **a_value;
     PPCODE:
         field = SvPV(field_name, len);
-        if (field[0] != ':') {
-            translate_underscore(aTHX_ field, len);
-            handle_standard_case(aTHX_ field, len);
-        }
-        # we are putting the decremented(with the number of input parameters) SP back in the THX
+
+        handle_standard_case(aTHX_ field, len);
+
+        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
         found = put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-        # we are setting the local SP variable to the value in THX
+        /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
 
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            # av_len == 0 here means that we have one item in av
+            /* av_len == 0 here means that we have one item in av */
             if ( SvROK(val) &&
                  SvTYPE( SvRV(val) ) == SVt_PVAV &&
                  av_len((AV *)SvRV(val)) == 0) {
@@ -250,20 +257,18 @@ _header_push(SV *self, SV *field_name, SV *val)
     PREINIT:
         char   *field;
         STRLEN len;
-        bool   found;
     PPCODE:
-         field = SvPV(field_name, len);
-         if (field[0] != ':') {
-                translate_underscore(aTHX_ field, len);
-                handle_standard_case(aTHX_ field, len);
-         }
-         # we are putting the decremented (with the number of
-         # input parameters) SP back in the THX
-         PUTBACK;
+        field = SvPV(field_name, len);
 
-         found = put_header_value_on_perl_stack(aTHX_ self, field, len);
+        handle_standard_case(aTHX_ field, len);
 
-         # we are setting the local SP variable to the value in THX
-         SPAGAIN;
+        /* we are putting the decremented (with the number of
+        input parameters) SP back in the THX */
+        PUTBACK;
+
+        put_header_value_on_perl_stack(aTHX_ self, field, len);
+
+        /* we are setting the local SP variable to the value in THX */
+        SPAGAIN;
 
         __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
