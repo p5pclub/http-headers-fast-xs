@@ -20,7 +20,7 @@ void translate_underscore(pTHX_ char *field, int len) {
     int i;
     SV *translate = GvSV( *MY_CXT.translate );
 
-    if (!translate)
+    if (!translate || field[0] == ':')
         croak("$TRANSLATE_UNDERSCORE variable does not exist");
 
     if ( !SvOK(translate) || !SvTRUE(translate) )
@@ -38,6 +38,12 @@ void handle_standard_case(pTHX_ char *field, int len) {
     bool word_boundary;
     int  i;
     SV   **standard_case_val;
+
+    /* leading ':' means "don't standardize" */
+    if ( field[0] == ':' ) {
+        return;
+    }
+    translate_underscore(aTHX_ field, len);
 
     /* make a copy to represent the original one */
     orig = (char *) alloca(len + 1);
@@ -166,7 +172,6 @@ _standardize_field_name(SV *field)
         STRLEN len;
     CODE:
         field_name = SvPV(field, len);
-        translate_underscore(aTHX_ field_name, len);
         handle_standard_case(aTHX_ field_name, len);
         RETVAL = field_name;
     OUTPUT: RETVAL
@@ -187,11 +192,8 @@ push_header( SV *self, ... )
             val   = newSVsv( ST( i + 1 ) );
             len   = SvCUR( ST(i) );
 
-            /* leading ':' means "don't standardize" */
-            if ( field[0] != ':' ) {
-                translate_underscore(aTHX_ field, len);
-                handle_standard_case(aTHX_ field, len);
-            }
+            handle_standard_case(aTHX_ field, len);
+
             __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
        }
 
@@ -205,10 +207,8 @@ _header_get( SV *self, SV *field_name, ... )
     PPCODE:
         field = SvPV(field_name, len);
         skip_standardize = ( items == 3 ) && SvTRUE(ST(3));
-        if (!skip_standardize && field[0] != ':') {
-            translate_underscore(aTHX_ field, len);
+        if (!skip_standardize)
             handle_standard_case(aTHX_ field, len);
-        }
 
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
@@ -228,10 +228,8 @@ _header_set(SV *self, SV *field_name, SV *val)
         SV     **a_value;
     PPCODE:
         field = SvPV(field_name, len);
-        if (field[0] != ':') {
-            translate_underscore(aTHX_ field, len);
-            handle_standard_case(aTHX_ field, len);
-        }
+
+        handle_standard_case(aTHX_ field, len);
 
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
@@ -261,10 +259,8 @@ _header_push(SV *self, SV *field_name, SV *val)
         STRLEN len;
     PPCODE:
         field = SvPV(field_name, len);
-        if (field[0] != ':') {
-            translate_underscore(aTHX_ field, len);
-            handle_standard_case(aTHX_ field, len);
-        }
+
+        handle_standard_case(aTHX_ field, len);
 
         /* we are putting the decremented (with the number of
         input parameters) SP back in the THX */
