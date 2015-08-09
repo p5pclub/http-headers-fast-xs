@@ -43,6 +43,7 @@ void handle_standard_case(pTHX_ char *field, int len) {
     if ( field[0] == ':' ) {
         return;
     }
+
     translate_underscore(aTHX_ field, len);
 
     /* make a copy to represent the original one */
@@ -120,9 +121,9 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
 }
 
 void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
-    SV **h;
-    AV *h_copy;
-    SV **a_value;
+    SV  **h;
+    AV  *h_copy;
+    SV  **a_value;
     int i, top_index;
 
     h = hv_fetch( self, field, len, 1 );
@@ -168,7 +169,7 @@ BOOT:
 char *
 _standardize_field_name(SV *field)
     PREINIT:
-        char *field_name;
+        char   *field_name;
         STRLEN len;
     CODE:
         field_name = SvPV(field, len);
@@ -179,10 +180,10 @@ _standardize_field_name(SV *field)
 void
 push_header( SV *self, ... )
     PREINIT:
-        int  i;
-        STRLEN  len;
-        char *field;
-        SV   *val;
+        int    i;
+        STRLEN len;
+        char   *field;
+        SV     *val;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
