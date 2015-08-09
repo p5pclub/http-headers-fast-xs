@@ -11,8 +11,9 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
 sub _new {
     my $class = shift;
-    my $self  = $class->SUPER::_new(@_);
-    bless $self, $class;
+    my $self  = bless {}, $class;
+    $self->header(@_) if @_;    # set up initial headers
+    $self;
 }
 
 1;
