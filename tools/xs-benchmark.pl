@@ -7,12 +7,16 @@ use Dumbbench;
 use Getopt::Long;
 
 use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
 
 my %cases = (
     _standardize_field_name => sub {
         my ($instance, $iterations) =  @_;
+        my $standardize_field_name = $ENV{PERL_HTTP_HEADERS_FAST_XS}
+            ? \&HTTP::Headers::Fast::XS::_standardize_field_name
+            : \&HTTP::Headers::Fast::_standardize_field_name;
         for (1..$iterations) {
-            HTTP::Headers::Fast::_standardize_field_name('X-Foo');
+            $standardize_field_name->('X-Foo');
         };
     },
     push_header => sub {
@@ -121,11 +125,11 @@ if ($cases){
     @run_cases = split ',', $cases;
 }
 
-my $bench   = execute_benchmark(\@run_cases);
+$ENV{PERL_HTTP_HEADERS_FAST_XS} = 0;
+my $bench = execute_benchmark(\@run_cases);
 
 # enable the XS functions
-require HTTP::Headers::Fast::XS;
-
+$ENV{PERL_HTTP_HEADERS_FAST_XS} = 1;
 my $xs_bench = execute_benchmark(\@run_cases);
 
 my @instances    = $bench->instances;

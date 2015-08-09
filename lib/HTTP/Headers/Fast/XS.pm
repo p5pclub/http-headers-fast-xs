@@ -1,32 +1,35 @@
 package HTTP::Headers::Fast::XS;
 
+use parent 'HTTP::Headers::Fast';
 use strict;
 use warnings;
 use XSLoader;
 
 our $VERSION = '0.001';
 
-require HTTP::Headers::Fast; # make sure it's loaded
+XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-if ( !defined $ENV{PERL_HTTP_HEADERS_FAST_XS}
-    || $ENV{PERL_HTTP_HEADERS_FAST_XS} )
-{
-    XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
+*HTTP::Headers::Fast::_new = *HTTP::Headers::Fast::new;
+*HTTP::Headers::Fast::new  = *HTTP::Headers::Fast::XS::new;
 
-    *HTTP::Headers::Fast::_standardize_field_name =
-        *HTTP::Headers::Fast::XS::_standardize_field_name;
+sub new {
+    my $class = shift;
 
-    *HTTP::Headers::Fast::push_header =
-        *HTTP::Headers::Fast::XS::push_header;
+    if ( !defined $ENV{PERL_HTTP_HEADERS_FAST_XS} ||
+        $ENV{PERL_HTTP_HEADERS_FAST_XS} )
+    {
+        unshift @_, 'HTTP::Headers::Fast::XS';
+        goto \&HTTP::Headers::Fast::XS::_new
+    } else {
+        unshift @_, 'HTTP::Headers::Fast';
+        goto \&HTTP::Headers::Fast::_new;
+    }
+}
 
-    *HTTP::Headers::Fast::_header_get =
-        *HTTP::Headers::Fast::XS::_header_get;
-
-    *HTTP::Headers::Fast::_header_set =
-        *HTTP::Headers::Fast::XS::_header_set;
-
-    #*HTTP::Headers::Fast::_header_push =
-    #    *HTTP::Headers::Fast::XS::_header_push;
+sub _new {
+    my $class = shift;
+    my $self  = $class->SUPER::_new(@_);
+    bless $self, $class;
 }
 
 1;
