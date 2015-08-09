@@ -191,7 +191,6 @@ push_header( SV *self, ... )
         for ( i = 1; i < items; i += 2 ) {
             field = SvPV(ST(i), len);
             val   = newSVsv( ST( i + 1 ) );
-            len   = SvCUR( ST(i) );
 
             handle_standard_case(aTHX_ field, len);
 
