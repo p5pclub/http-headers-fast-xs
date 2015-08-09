@@ -9,13 +9,6 @@ our $VERSION = '0.001';
 
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-sub _new {
-    my $class = shift;
-    my $self  = bless {}, $class;
-    $self->header(@_) if @_;    # set up initial headers
-    $self;
-}
-
 1;
 
 __END__

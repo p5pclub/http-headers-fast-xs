@@ -69,11 +69,10 @@ sub new {
         $ENV{PERL_HTTP_HEADERS_FAST_XS} )
     {
         unshift @_, 'HTTP::Headers::Fast::XS';
-        goto \&HTTP::Headers::Fast::XS::_new
     } else {
         unshift @_, 'HTTP::Headers::Fast';
-        goto \&HTTP::Headers::Fast::_new;
     }
+    goto &_new;
 }
 
 sub _new {
