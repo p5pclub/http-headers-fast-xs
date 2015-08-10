@@ -9,12 +9,6 @@ our $VERSION = '0.001';
 
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-sub isa {
-    my ($self, $klass) = @_;
-    return 1 if $klass eq 'HTTP::Headers::Fast';
-    return $self->SUPER::isa($klass);
-}
-
 1;
 
 __END__

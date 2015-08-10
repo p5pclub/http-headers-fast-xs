@@ -84,8 +84,7 @@ sub _new {
 
 sub isa {
     my ($self, $klass) = @_;
-    my $proto = ref $self || $self;
-    return ($proto eq $klass || $klass eq 'HTTP::Headers') ? 1 : 0;
+    return ($self->SUPER::isa($klass) || $klass eq 'HTTP::Headers') ? 1 : 0;
 }
 
 sub header {
