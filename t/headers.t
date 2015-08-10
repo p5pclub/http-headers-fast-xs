@@ -13,7 +13,7 @@ sub j { join("|", @_) }
 require HTTP::Headers::Fast;
 $h = HTTP::Headers::Fast->new;
 ok($h);
-ok(ref($h), "HTTP::Headers::Fast");
+ok($h->isa("HTTP::Headers::Fast"));
 ok($h->as_string, "");
 
 $h = HTTP::Headers::Fast->new(foo => "bar", foo => "baaaaz", Foo => "baz");
