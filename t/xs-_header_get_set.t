@@ -45,6 +45,4 @@ can_ok( HTTP::Headers::Fast::, '_header_get' );
     );
 }
 
-
-
 done_testing;

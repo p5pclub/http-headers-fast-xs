@@ -30,9 +30,15 @@ __END__
 
 =pod
 
+=encoding utf8
+
 =head1 NAME
 
 HTTP::Headers::Fast::XS - XS implementation of HTTP::Headers::Fast
+
+=head1 VERSION
+
+0.001
 
 =head1 SYNOPSIS
 
@@ -53,6 +59,34 @@ depends on it just like you did before. It's just faster now.
 
 Implemented methods in XS:
 
+=head2 push_header
+
+=head2 _header_get
+
+=head2 _header_set
+
 =head2 _standardize_field_name
 
-This is an internal function used often.
+=head1 CREDITS
+
+=over 4
+
+=item * p5pclub
+
+=back
+
+=head1 AUTHORS
+
+=over 4
+
+=item * Sawyer X C<< xsawyerx AT cpan DOT org >>
+
+=item * Andrei Vereha C<< avereha AT cpan DOT org >>
+
+=item * Steven Lee C<< stevel AT cpan DOT org >>
+
+=item * Gonzalo Diethelm C<< gonzus AT cpan DOT org >>
+
+=item * Rafaël Garcia-Suarez - for asking for it.
+
+=back

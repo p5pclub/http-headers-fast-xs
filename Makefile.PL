@@ -10,7 +10,12 @@ WriteMakefile(
         'XSLoader'            => 0,
         'HTTP::Headers::Fast' => '0.18',
     },
-    AUTHOR         => 'Sawyer X (xsawyerx@cpan.org)',
+    AUTHOR         => [
+        'Sawyer X (xsawyerx@cpan.org)',
+        'Andrei Vereha (avereha@cpan.org)',
+        'Steven Lee (stevenl@cpan.org)',
+        'Gonzalo Diethelm (gonzus@cpan.org)',
+    ],
     LIBS           => [''],
     DEFINE         => '',
     INC            => '-I.',
