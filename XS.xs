@@ -88,13 +88,13 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     SV   **h, **a_value;
     AV   *av_entry;
     int  top_index, i;
-    bool found = true;
 
     h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
-    if ( h == NULL || !SvOK(*h) ) {
+    if ( h == NULL || !SvOK(*h) )
         /* If the field is not found, don't put anything on stack -> that will return () to perl */
-        found = false;
-    } else if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV) {
+        return false;
+    
+    if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV ) {
         /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
         av_entry = (AV *) SvRV(*h);
         top_index = av_len(av_entry);
@@ -117,7 +117,7 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
 
     /* put the local SP in THX -> SP was EXTENDED */
     PUTBACK;
-    return found;
+    return true;
 }
 
 void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
