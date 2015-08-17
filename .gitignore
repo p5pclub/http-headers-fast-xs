@@ -36,7 +36,7 @@ HTTP-Headers-Fast-*/
 !Build/
 !META.json
 !LICENSE
-*.c
 *.o
 *.bs
 *.swp
+XS.c
