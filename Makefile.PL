@@ -10,11 +10,11 @@ WriteMakefile(
         'XSLoader'            => 0,
         'HTTP::Headers::Fast' => '0.18',
     },
-    AUTHOR         => 'Sawyer X (xsawyerx@cpan.org)',
+    AUTHOR         => 'Gonzalo Diethelm (gonzus@cpan.org)',
     LIBS           => [''],
-    DEFINE         => '',
+    DEFINE         => '-DGMEM_CHECK',
     INC            => '-I.',
-    #OBJECT         => '$(O_FILES)',
+    OBJECT         => '$(O_FILES)',
 );
 
 # Add -Wall to CCFLAGS without overwriting the defaults

@@ -3,26 +3,542 @@ package HTTP::Headers::Fast::XS;
 use strict;
 use warnings;
 use XSLoader;
+use parent 'Exporter';
+use Data::Dumper qw( Dumper );    # really needed, not just for debugging
 
-our $VERSION = '0.001';
+our $VERSION = '0.11';
+our $TRANSLATE_UNDERSCORE = 1;
 
-require HTTP::Headers::Fast; # make sure it's loaded
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-*HTTP::Headers::Fast::_standardize_field_name =
-    *HTTP::Headers::Fast::XS::_standardize_field_name;
+use 5.00800;
+use Carp ();
 
-*HTTP::Headers::Fast::push_header =
-    *HTTP::Headers::Fast::XS::push_header;
+# "Good Practice" order of HTTP message headers:
+#    - General-Headers
+#    - Request-Headers
+#    - Response-Headers
+#    - Entity-Headers
 
-*HTTP::Headers::Fast::_header_get =
-    *HTTP::Headers::Fast::XS::_header_get;
+# yappo says "Readonly sucks".
+my $OP_GET    = 0;
+my $OP_SET    = 1;
+my $OP_INIT   = 2;
+my $OP_PUSH   = 3;
 
-*HTTP::Headers::Fast::_header_set =
-    *HTTP::Headers::Fast::XS::_header_set;
+my @general_headers = qw(
+  Cache-Control Connection Date Pragma Trailer Transfer-Encoding Upgrade
+  Via Warning
+);
 
-#*HTTP::Headers::Fast::_header_push =
-#    *HTTP::Headers::Fast::XS::_header_push;
+my @request_headers = qw(
+  Accept Accept-Charset Accept-Encoding Accept-Language
+  Authorization Expect From Host
+  If-Match If-Modified-Since If-None-Match If-Range If-Unmodified-Since
+  Max-Forwards Proxy-Authorization Range Referer TE User-Agent
+);
+
+my @response_headers = qw(
+  Accept-Ranges Age ETag Location Proxy-Authenticate Retry-After Server
+  Vary WWW-Authenticate
+);
+
+my @entity_headers = qw(
+  Allow Content-Encoding Content-Language Content-Length Content-Location
+  Content-MD5 Content-Range Content-Type Expires Last-Modified
+);
+
+my %entity_header = map { lc($_) => 1 } @entity_headers;
+
+my @header_order =
+  ( @general_headers, @request_headers, @response_headers, @entity_headers, );
+
+# Make alternative representations of @header_order.  This is used
+# for sorting and case matching.
+my %header_order;
+our %standard_case;
+
+{
+    my $i = 0;
+    for (@header_order) {
+        my $lc = lc $_;
+        $header_order{$lc}  = ++$i;
+        $standard_case{$lc} = $_;
+    }
+}
+
+sub new {
+    my ($class) = shift;
+    my $self = bless {}, $class;
+    $self->{hlist} = hhf_hlist_create();
+    $self->header(@_) if @_;    # set up initial headers
+    $self;
+}
+
+sub DESTROY {
+    my ($self) = shift;
+    hhf_hlist_destroy($self->{hlist});
+    1;
+}
+
+sub isa {
+    my ($self, $klass) = @_;
+    my $proto = ref $self || $self;
+    return ($proto eq $klass || $klass eq 'HTTP::Headers') ? 1 : 0;
+}
+
+sub header {
+    my $self = shift;
+    Carp::croak('Usage: $h->header($field, ...)') unless @_;
+    my (@old);
+
+    if (@_ == 1) {
+        @old = hhf_header_get($self->{hlist}, @_);
+    } elsif( @_ == 2 ) {
+        @old = hhf_header_set($self->{hlist}, 0, 0, @_);
+        printf("From hhf_header_set 1 got [%s]\n", Data::Dumper::Dumper(\@old));
+    } else {
+        my %seen;
+        while (@_) {
+            my $field = shift;
+            if ( $seen{ lc $field }++ ) {
+                @old = hhf_header_set($self->{hlist}, 0, 1, $field, shift);
+            } else {
+                @old = hhf_header_set($self->{hlist}, 0, 0, $field, shift);
+                printf("From hhf_header_set 2 got [%s]\n", Data::Dumper::Dumper(\@old));
+            }
+        }
+    }
+
+    return @old    if wantarray;
+    return $old[0] if @old <= 1;
+    return join( ", ", @old );
+}
+
+sub clear {
+    my $self = shift;
+    hhf_hlist_clear($self->{hlist});
+}
+
+sub push_header {
+    my $self = shift;
+
+    if (@_ == 2) {
+        my ($field, $val) = @_;
+        hhf_header_set($self->{hlist}, 0, 1, $field, $val);
+    } else {
+        while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
+            hhf_header_set($self->{hlist}, 0, 1, $field, $val);
+        }
+    }
+    return ();
+}
+
+sub init_header {
+    Carp::croak('Usage: $h->init_header($field, $val)') if @_ != 3;
+    my ($self, $field, $val) = @_;
+    hhf_header_set($self->{hlist}, 1, 0, $field, $val);
+}
+
+sub remove_header {
+    my ( $self, @fields ) = @_;
+    my @values;
+    for my $field (@fields) {
+        my @ret = hhf_header_remove($self->{hlist}, $field);
+        push(@values, @ret);
+    }
+    return @values;
+}
+
+sub remove_content_headers {
+    my $self = shift;
+    my $c = ref($self)->new;
+    for my $field (@entity_headers) {
+        my @values = hhf_header_remove($self->{hlist}, $field);
+        $c->header($field, \@values);
+    }
+    $c;
+}
+
+### my %field_name;
+### sub _standardize_field_name {
+###     my $field = shift;
+###
+###     $field =~ tr/_/-/ if $TRANSLATE_UNDERSCORE;
+###     if (my $cache = $field_name{$field}) {
+###         return $cache;
+###     }
+###
+###     my $old = $field;
+###     $field = lc $field;
+###     unless ( defined $standard_case{$field} ) {
+###         # generate a %standard_case entry for this field
+###         $old =~ s/\b(\w)/\u$1/g;
+###         $standard_case{$field} = $old;
+###     }
+###     $field_name{$old} = $field;
+###     return $field;
+### }
+###
+### sub _header_get {
+###     my ($self, $field, $skip_standardize) = @_;
+###
+###     $field = _standardize_field_name($field) unless $skip_standardize || $field =~ /^:/;
+###
+###     my $h = $self->{$field};
+###     return (ref($h) eq 'ARRAY') ? @$h : ( defined($h) ? ($h) : () );
+### }
+###
+### sub _header_set {
+###     my ($self, $field, $val) = @_;
+###
+###     $field = _standardize_field_name($field) unless $field =~ /^:/;
+###
+###     my $h = $self->{$field};
+###     my @old = ref($h) eq 'ARRAY' ? @$h : ( defined($h) ? ($h) : () );
+###     if ( defined($val) ) {
+###         if (ref $val eq 'ARRAY' && scalar(@$val) == 1) {
+###             $val = $val->[0];
+###         }
+###         $self->{$field} = $val;
+###     } else {
+###         delete $self->{$field};
+###     }
+###     return @old;
+### }
+###
+### sub _header_push {
+###     my ($self, $field, $val) = @_;
+###
+###     $field = _standardize_field_name($field) unless $field =~ /^:/;
+###
+###     my $h = $self->{$field};
+###     my @old = ref($h) eq 'ARRAY') ? @$h : (defined($h) ? ($h) : ());
+###     my $n = ref $val ne 'ARRAY' ? $val : @$val;
+###     if (ref($h) eq 'ARRAY') {
+###         push @$h, $x;
+###     } elsif (defined $h) {
+###         $self->{$field} = [$h, $x];
+###     } else {
+###         $self->{$field} = $x;
+###     }
+###     return @old;
+### }
+###
+### sub _header {
+###     my ($self, $field, $val, $op) = @_;
+###
+###     $field = _standardize_field_name($field) unless $field =~ /^:/;
+###
+###     $op ||= defined($val) ? $OP_SET : $OP_GET;
+###
+###     my $h = $self->{$field};
+###     my @old = ref($h) eq 'ARRAY' ? @$h : ( defined($h) ? ($h) : () );
+###
+###     unless ( $op == $OP_GET || ( $op == $OP_INIT && @old ) ) {
+###         if ( defined($val) ) {
+###             my @new = ( $op == $OP_PUSH ) ? @old : ();
+###             if ( ref($val) ne 'ARRAY' ) {
+###                 push( @new, $val );
+###             }
+###             else {
+###                 push( @new, @$val );
+###             }
+###             $self->{$field} = @new > 1 ? \@new : $new[0];
+###         }
+###         elsif ( $op != $OP_PUSH ) {
+###             delete $self->{$field};
+###         }
+###     }
+###     @old;
+### }
+
+sub _sorted_field_names {
+    my $self = shift;
+    return [
+        sort
+        {
+            ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
+                || $a cmp $b
+        } hhf_header_names($self->{hlist}) ];
+}
+
+sub header_field_names {
+    my $self = shift;
+    return map $standard_case{$_} || $_, @{ $self->_sorted_field_names };
+}
+
+### sub scan {
+###     my ( $self, $sub ) = @_;
+###     for my $key (@{ $self->_sorted_field_names }) {
+###         next if substr($key, 0, 1) eq '_';
+###         my $vals = $self->{$key};
+###         if ( ref($vals) eq 'ARRAY' ) {
+###             for my $val (@$vals) {
+###                 $sub->( $standard_case{$key} || $key, $val );
+###             }
+###         }
+###         else {
+###             $sub->( $standard_case{$key} || $key, $vals );
+###         }
+###     }
+### }
+###
+### sub _process_newline {
+###     local $_ = shift;
+###     my $endl = shift;
+###     # must handle header values with embedded newlines with care
+###     s/\s+$//;        # trailing newlines and space must go
+###     s/\n(\x0d?\n)+/\n/g;     # no empty lines
+###     s/\n([^\040\t])/\n $1/g; # intial space for continuation
+###     s/\n/$endl/g;    # substitute with requested line ending
+###     $_;
+### }
+###
+### sub _as_string {
+###     my ($self, $endl, $fieldnames) = @_;
+###
+###     my @result;
+###     for my $key ( @$fieldnames ) {
+###         next if index($key, '_') == 0;
+###         my $vals = $self->{$key};
+###         if ( ref($vals) eq 'ARRAY' ) {
+###             for my $val (@$vals) {
+###                 my $field = $standard_case{$key} || $key;
+###                 $field =~ s/^://;
+###                 if ( index($val, "\n") >= 0 ) {
+###                     $val = _process_newline($val, $endl);
+###                 }
+###                 push @result, $field . ': ' . $val;
+###             }
+###         } else {
+###             my $field = $standard_case{$key} || $key;
+###             $field =~ s/^://;
+###             if ( index($vals, "\n") >= 0 ) {
+###                 $vals = _process_newline($vals, $endl);
+###             }
+###             push @result, $field . ': ' . $vals;
+###         }
+###     }
+###
+###     join( $endl, @result, '' );
+### }
+###
+### sub as_string {
+###     my ( $self, $endl ) = @_;
+###     $endl = "\n" unless defined $endl;
+###     $self->_as_string($endl, $self->_sorted_field_names);
+### }
+###
+### sub as_string_without_sort {
+###     my ( $self, $endl ) = @_;
+###     $endl = "\n" unless defined $endl;
+###     $self->_as_string($endl, [keys(%$self)]);
+### }
+###
+### {
+###     my $storable_required;
+###     sub clone {
+###         unless ($storable_required) {
+###             require Storable;
+###             $storable_required++;
+###         }
+###         goto &Storable::dclone;
+###     }
+### }
+###
+### sub _date_header {
+###     require HTTP::Date;
+###     my ( $self, $header, $time ) = @_;
+###     my $old;
+###     if ( defined $time ) {
+###         ($old) = $self->_header_set( $header, HTTP::Date::time2str($time) );
+###     } else {
+###         ($old) = $self->_header_get($header, 1);
+###     }
+###     $old =~ s/;.*// if defined($old);
+###     HTTP::Date::str2time($old);
+### }
+###
+### sub date                { shift->_date_header( 'date',                @_ ); }
+### sub expires             { shift->_date_header( 'expires',             @_ ); }
+### sub if_modified_since   { shift->_date_header( 'if-modified-since',   @_ ); }
+### sub if_unmodified_since { shift->_date_header( 'if-unmodified-since', @_ ); }
+### sub last_modified       { shift->_date_header( 'last-modified',       @_ ); }
+###
+### # This is used as a private LWP extension.  The Client-Date header is
+### # added as a timestamp to a response when it has been received.
+### sub client_date { shift->_date_header( 'client-date', @_ ); }
+###
+### # The retry_after field is dual format (can also be a expressed as
+### # number of seconds from now), so we don't provide an easy way to
+### # access it until we have know how both these interfaces can be
+### # addressed.  One possibility is to return a negative value for
+### # relative seconds and a positive value for epoch based time values.
+### #sub retry_after       { shift->_date_header('Retry-After',       @_); }
+###
+### sub content_type {
+###     my $self = shift;
+###     my $ct   = $self->{'content-type'};
+###     $self->{'content-type'} = shift if @_;
+###     $ct = $ct->[0] if ref($ct) eq 'ARRAY';
+###     return '' unless defined($ct) && length($ct);
+###     my @ct = split( /;\s*/, $ct, 2 );
+###     for ( $ct[0] ) {
+###         s/\s+//g;
+###         $_ = lc($_);
+###     }
+###     wantarray ? @ct : $ct[0];
+### }
+###
+### sub content_type_charset {
+###     my $self = shift;
+###     my $h = $self->{'content-type'};
+###     $h = $h->[0] if ref($h);
+###     $h = "" unless defined $h;
+###     my @v = _split_header_words($h);
+###     if (@v) {
+### 	my($ct, undef, %ct_param) = @{$v[0]};
+### 	my $charset = $ct_param{charset};
+### 	if ($ct) {
+### 	    $ct = lc($ct);
+### 	    $ct =~ s/\s+//;
+### 	}
+### 	if ($charset) {
+### 	    $charset = uc($charset);
+### 	    $charset =~ s/^\s+//;  $charset =~ s/\s+\z//;
+### 	    undef($charset) if $charset eq "";
+### 	}
+### 	return $ct, $charset if wantarray;
+### 	return $charset;
+###     }
+###     return undef, undef if wantarray;
+###     return undef;
+### }
+###
+### sub _split_header_words
+### {
+###     my(@val) = @_;
+###     my @res;
+###     for (@val) {
+### 	my @cur;
+### 	while (length) {
+### 	    if (s/^\s*(=*[^\s=;,]+)//) {  # 'token' or parameter 'attribute'
+### 		push(@cur, $1);
+### 		# a quoted value
+### 		if (s/^\s*=\s*\"([^\"\\]*(?:\\.[^\"\\]*)*)\"//) {
+### 		    my $val = $1;
+### 		    $val =~ s/\\(.)/$1/g;
+### 		    push(@cur, $val);
+### 		# some unquoted value
+### 		}
+### 		elsif (s/^\s*=\s*([^;,\s]*)//) {
+### 		    my $val = $1;
+### 		    $val =~ s/\s+$//;
+### 		    push(@cur, $val);
+### 		# no value, a lone token
+### 		}
+### 		else {
+### 		    push(@cur, undef);
+### 		}
+### 	    }
+### 	    elsif (s/^\s*,//) {
+### 		push(@res, [@cur]) if @cur;
+### 		@cur = ();
+### 	    }
+### 	    elsif (s/^\s*;// || s/^\s+//) {
+### 		# continue
+### 	    }
+### 	    else {
+### 		die "This should not happen: '$_'";
+### 	    }
+### 	}
+### 	push(@res, \@cur) if @cur;
+###     }
+###
+###     for my $arr (@res) {
+### 	for (my $i = @$arr - 2; $i >= 0; $i -= 2) {
+### 	    $arr->[$i] = lc($arr->[$i]);
+### 	}
+###     }
+###     return @res;
+### }
+###
+### sub content_is_html {
+###     my $self = shift;
+###     return $self->content_type eq 'text/html' || $self->content_is_xhtml;
+### }
+###
+### sub content_is_xhtml {
+###     my $ct = shift->content_type;
+###     return $ct eq "application/xhtml+xml"
+###       || $ct   eq "application/vnd.wap.xhtml+xml";
+### }
+###
+### sub content_is_xml {
+###     my $ct = shift->content_type;
+###     return 1 if $ct eq "text/xml";
+###     return 1 if $ct eq "application/xml";
+###     return 1 if $ct =~ /\+xml$/;
+###     return 0;
+### }
+###
+### sub referer {
+###     my $self = shift;
+###     if ( @_ && $_[0] =~ /#/ ) {
+###
+###         # Strip fragment per RFC 2616, section 14.36.
+###         my $uri = shift;
+###         if ( ref($uri) ) {
+###             $uri = $uri->clone;
+###             $uri->fragment(undef);
+###         }
+###         else {
+###             $uri =~ s/\#.*//;
+###         }
+###         unshift @_, $uri;
+###     }
+###     ( $self->_header( 'Referer', @_ ) )[0];
+### }
+### *referrer = \&referer;    # on tchrist's request
+###
+### for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
+###     no strict 'refs';
+###     (my $meth = $key) =~ s/-/_/g;
+###     *{$meth} = sub {
+###         my $self = shift;
+###         if (@_) {
+###             ( $self->_header_set( $key, @_ ) )[0]
+###         } else {
+###             my $h = $self->{$key};
+###             (ref($h) eq 'ARRAY') ? $h->[0] : $h;
+###         }
+###     };
+### }
+###
+### sub authorization_basic { shift->_basic_auth( "Authorization", @_ ) }
+### sub proxy_authorization_basic {
+###     shift->_basic_auth( "Proxy-Authorization", @_ );
+### }
+###
+### sub _basic_auth {
+###     require MIME::Base64;
+###     my ( $self, $h, $user, $passwd ) = @_;
+###     my ($old) = $self->_header($h);
+###     if ( defined $user ) {
+###         Carp::croak("Basic authorization user name can't contain ':'")
+###           if $user =~ /:/;
+###         $passwd = '' unless defined $passwd;
+###         $self->_header(
+###             $h => 'Basic ' . MIME::Base64::encode( "$user:$passwd", '' ) );
+###     }
+###     if ( defined $old && $old =~ s/^\s*Basic\s+// ) {
+###         my $val = MIME::Base64::decode($old);
+###         return $val unless wantarray;
+###         return split( /:/, $val, 2 );
+###     }
+###     return;
+### }
 
 1;
 

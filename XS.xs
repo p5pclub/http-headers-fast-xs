@@ -3,272 +3,242 @@
 #include "perl.h"
 #include "XSUB.h"
 #include "ppport.h"
-
-#include <string.h>
-
-#define MY_CXT_KEY "HTTP::Headers::Fast::XS::_guts" XS_VERSION
-
-typedef struct {
-    HV *standard_case;
-    SV **translate;
-} my_cxt_t;
-
-START_MY_CXT;
-
-void translate_underscore(pTHX_ char *field, int len) {
-    dMY_CXT;
-    int i;
-    SV *translate = GvSV( *MY_CXT.translate );
-
-    if (!translate || field[0] == ':')
-        croak("$TRANSLATE_UNDERSCORE variable does not exist");
-
-    if ( !SvOK(translate) || !SvTRUE(translate) )
-        return;
-
-    for ( i = 0; i < len; i++ )
-        if ( field[i] == '_' )
-            field[i] = '-';
-}
-
-
-void handle_standard_case(pTHX_ char *field, int len) {
-    dMY_CXT;
-    char *orig;
-    bool word_boundary;
-    int  i;
-    SV   **standard_case_val;
-
-    /* leading ':' means "don't standardize" */
-    if ( field[0] == ':' ) {
-        return;
-    }
-
-    translate_underscore(aTHX_ field, len);
-
-    /* make a copy to represent the original one */
-    orig = (char *) alloca(len + 1);
-
-    /* copy and lc */
-    for ( i = 0; i < len; i++ ) {
-        orig[i] = field[i];
-        field[i] = tolower( field[i] );
-    }
-
-    orig[len] = '\0';
-
-    /* if we already have a value in the hash table, nothing to do */
-    standard_case_val = hv_fetch(
-        MY_CXT.standard_case, field, len, 1
-    );
-
-    if (!standard_case_val)
-        croak("hv_fetch() failed. This should not happen.");
-
-    if ( SvOK(*standard_case_val) )
-        return;
-
-    /* uc first char after word boundary */
-    word_boundary = true;
-    for (i = 0; i < len; i++ ) {
-        if (word_boundary) {
-            orig[i] = toupper( orig[i] );
-        }
-
-        word_boundary = !isWORDCHAR( orig[i] );
-    }
-
-    /* save result in hash table */
-    *standard_case_val = newSVpv( orig, len );
-}
-
-/* Returns if we store that field name or not */
-bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
-    dSP;
-    SV   **h, **a_value;
-    AV   *av_entry;
-    int  top_index, i;
-    bool found = true;
-
-    h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
-    if ( h == NULL || !SvOK(*h) ) {
-        /* If the field is not found, don't put anything on stack -> that will return () to perl */
-        found = false;
-    } else if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV) {
-        /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
-        av_entry = (AV *) SvRV(*h);
-        top_index = av_len(av_entry);
-        EXTEND(SP, top_index);
-
-        for (i = 0; i <= top_index; i++) {
-            a_value = av_fetch( av_entry, i, 0 );
-
-            if ( !a_value ) {
-                croak("av_fetch() failed. This should not happen.");
-            }
-
-            PUSHs(sv_2mortal(newSVsv(*a_value)));
-        }
-    } else {
-        /* If we have one value, just put it on stack. This will return ($h) to perl */
-        EXTEND(SP, 1);
-        PUSHs(sv_2mortal(newSVsv(*h)));
-    }
-
-    /* put the local SP in THX -> SP was EXTENDED */
-    PUTBACK;
-    return found;
-}
-
-void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
-    SV  **h;
-    AV  *h_copy;
-    SV  **a_value;
-    int i, top_index;
-
-    h = hv_fetch( self, field, len, 1 );
-    if ( h == NULL )
-        croak("hv_fetch() failed. This should not happen.");
-
-    if ( ! SvOK(*h) ) {
-        *h = newRV_noinc( (SV *) newAV() );
-    } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
-        h_copy = av_make( 1, h );
-        *h = newRV_noinc( (SV *)h_copy );
-    }
-
-    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
-        h_copy = (AV *) SvRV(val);
-        top_index = av_len(h_copy);
-
-        for ( i = 0; i <= top_index; i++ ) {
-            a_value = av_fetch( h_copy, i, 0 );
-            if (a_value)
-                av_push( (AV *) SvRV(*h), *a_value );
-        }
-    } else {
-        av_push( (AV *) SvRV(*h), val );
-    }
-}
+#include "hlist.h"
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
-BOOT:
-{
-    MY_CXT_INIT;
-    MY_CXT.standard_case = get_hv( "HTTP::Headers::Fast::standard_case", 0 );
-    MY_CXT.translate     = hv_fetch(
-        gv_stashpvn( "HTTP::Headers::Fast", 19, 0 ),
-        "TRANSLATE_UNDERSCORE",
-        20,
-        0
-    );
-}
 
-char *
-_standardize_field_name(SV *field)
-    PREINIT:
-        char   *field_name;
-        STRLEN len;
-    CODE:
-        field_name = SvPV(field, len);
-        handle_standard_case(aTHX_ field_name, len);
-        RETVAL = field_name;
-    OUTPUT: RETVAL
+void*
+hhf_hlist_create()
 
-void
-push_header( SV *self, ... )
-    PREINIT:
-        int    i;
-        STRLEN len;
-        char   *field;
-        SV     *val;
-    CODE:
-        if ( items % 2 == 0 )
-            croak("You must provide key/value pairs");
+  PREINIT:
+    HList* h = 0;
 
-        for ( i = 1; i < items; i += 2 ) {
-            field = SvPV(ST(i), len);
-            val   = newSVsv( ST( i + 1 ) );
+  CODE:
+    h = hlist_create();
+    fprintf(stderr, "=C= created hlist %p\n", h);
+    RETVAL = (void*) h;
 
-            handle_standard_case(aTHX_ field, len);
-
-            __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
-       }
+  OUTPUT: RETVAL
 
 
 void
-_header_get( SV *self, SV *field_name, ... )
-    PREINIT:
-        char   *field;
-        STRLEN len;
-        bool   skip_standardize;
-    PPCODE:
-        field = SvPV(field_name, len);
-        skip_standardize = ( items == 3 ) && SvTRUE(ST(3));
-        if (!skip_standardize)
-            handle_standard_case(aTHX_ field, len);
+hhf_hlist_destroy(unsigned long nh)
 
-        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
-        PUTBACK;
+  PREINIT:
+    HList* h = 0;
 
-        put_header_value_on_perl_stack(aTHX_ self, field, len);
-
-        /* we are setting the local SP variable to the value in THX(it was changed inside the previous function call) */
-        SPAGAIN;
+  CODE:
+    h = (HList*) nh;
+    fprintf(stderr, "=C= destroying hlist %p\n", h);
+    hlist_unref(h);
 
 
 void
-_header_set(SV *self, SV *field_name, SV *val)
-    PREINIT:
-        char   *field;
-        STRLEN len;
-        bool   found;
-        SV     **a_value;
-    PPCODE:
-        field = SvPV(field_name, len);
+hhf_hlist_clear(unsigned long nh)
 
-        handle_standard_case(aTHX_ field, len);
+  PREINIT:
+    HList* h = 0;
 
-        /* we are putting the decremented(with the number of input parameters) SP back in the THX */
-        PUTBACK;
+  CODE:
+    fprintf(stderr, "=C= clearing hlist %p\n", h);
+    h = (HList*) nh;
+    hlist_clear(h);
 
-        found = put_header_value_on_perl_stack(aTHX_ self, field, len);
 
-        /* we are setting the local SP variable to the value in THX */
-        SPAGAIN;
+void
+hhf_header_get(unsigned long nh, const char* name)
 
-        if (!SvOK(val) && found) {
-            hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
-        } else {
-            /* av_len == 0 here means that we have one item in av */
-            if ( SvROK(val) &&
-                 SvTYPE( SvRV(val) ) == SVt_PVAV &&
-                 av_len((AV *)SvRV(val)) == 0) {
-                a_value = av_fetch( (AV *)SvRV(val), 0, 0 );
-                val = *a_value;
+  PREINIT:
+    HList* h = 0;
+    SList* s = 0;
+
+  PPCODE:
+    h = (HList*) nh;
+    fprintf(stderr, "=C= header_get hlist %p\n", h);
+
+    fprintf(stderr, "=C= header_get: name=[%s]\n", name);
+    s = hlist_get_header(h, name);
+    int count = s ? slist_size(s) : 0;
+    if (count <= 0) {
+      fprintf(stderr, "=C= header_get: empty values\n");
+      return;
+    }
+    fprintf(stderr, "=C= header_get: returning %d values\n", count);
+    EXTEND(SP, count);
+    for (; s != 0; s = s->nxt) {
+      if (!s->str) {
+        continue;
+      }
+
+      /* TODO: This can probably be optimised A LOT*/
+      fprintf(stderr, "=C= header_get: returning [%s]\n", s->str);
+      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+    }
+
+
+void
+hhf_header_set(unsigned long nh, int new_only, int keep_previous, const char* name, SV* val)
+
+  PREINIT:
+    HList* h = 0;
+    SList* s = 0;
+    SList* t = 0;
+    AV* arr = 0;
+    int count = 0;
+
+  PPCODE:
+    h = (HList*) nh;
+    fprintf(stderr, "=C= HEADER_SET(%p, %d, %d, %s, %p)\n", h, new_only, keep_previous, name, val);
+
+    fprintf(stderr, "=C= header_set: name=[%s]\n", name);
+    /* We look for the current values for the header and keep a reference to them */
+    s = hlist_get_header(h, name);
+    count = s ? slist_size(s) : 0;
+    fprintf(stderr, "=C= header_set: will later return %d values\n", count);
+    if (s) {
+      if (new_only) {
+        /* header should not have existed before */
+        fprintf(stderr, "=C= header_set: tried to init already-existing header, bye\n");
+        return;
+      }
+
+      if (keep_previous) {
+        /* Make a deep copy of the current value */
+        fprintf(stderr, "=C= header_set: making a deep copy\n");
+        t = slist_clone(s);
+      } else {
+        /* Make a shallow copy of the current value */
+        fprintf(stderr, "=C= header_set: making a shallow copy\n");
+        t = slist_ref(s);
+
+        /* Erase what is already there for this header */
+        hlist_del_header(h, name);
+        fprintf(stderr, "=C= header_set: deleted key [%s]\n", name);
+      }
+    }
+
+    /* hlist_new_header(h, name, 0); */
+    /* fprintf(stderr, "=C= header_set: added key [%s]\n", name); */
+
+    if (val) {
+
+      /* Scalar? Just convert it to string. */
+      if (SvIOK(val) || SvNOK(val) || SvPOK(val)) {
+        STRLEN slen;
+        const char* elem = SvPV(val, slen);
+        hlist_add_header(h, name, elem);
+        fprintf(stderr, "=C= header_set: added single value [%s]\n", elem);
+      }
+
+      /* Reference? */
+      if (SvROK(val)) {
+        fprintf(stderr, "=C= header_set: is a ref\n");
+        SV* deref = (SV*) SvRV(val);
+        if (SvTYPE(deref) == SVt_PVAV) {
+          fprintf(stderr, "=C= header_set: is an arrayref\n");
+          arr = (AV*) SvRV(val);
+
+          /* Add each element in val as a value for name. */
+          count = av_len(arr) + 1;
+          fprintf(stderr, "=C= header_set: array has %d elementds\n", count);
+          for (int j = 0; j < count; ++j) {
+            SV** svp = av_fetch(arr, j, 0);
+            if (SvIOK(*svp) || SvNOK(*svp) || SvPOK(*svp)) {
+              STRLEN slen;
+              const char* elem = SvPV(*svp, slen);
+              hlist_add_header(h, name, elem);
+              fprintf(stderr, "=C= header_set: added value %d [%s]\n", j, elem);
             }
-            hv_store( (HV *) SvRV(self), field, len, newSVsv(val), 0);
+          }
         }
+      }
+    }
+
+    /* We now can put in the return stack all the original values */
+    count = t ? slist_size(t) : 0;
+    fprintf(stderr, "=C= header_set: returning %d values\n", count);
+    EXTEND(SP, count);
+    for (s = t; s != 0; s = s->nxt) {
+      if (!s->str) {
+        continue;
+      }
+
+      /* TODO: This can probably be optimised A LOT*/
+      fprintf(stderr, "=C= header_set: returning [%s]\n", s->str);
+      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+    }
+
+    fprintf(stderr, "=C= header_set: now erasing the %d values for %p\n", count, t);
+    slist_unref(t);
+    fprintf(stderr, "=C= header_set: finished erasing the %d values\n", count);
+
 
 void
-_header_push(SV *self, SV *field_name, SV *val)
-    PREINIT:
-        char   *field;
-        STRLEN len;
-    PPCODE:
-        field = SvPV(field_name, len);
+hhf_header_remove(unsigned long nh, const char* name)
 
-        handle_standard_case(aTHX_ field, len);
+  PREINIT:
+    HList* h = 0;
+    SList* s = 0;
+    SList* t = 0;
+    int count = 0;
 
-        /* we are putting the decremented (with the number of
-        input parameters) SP back in the THX */
-        PUTBACK;
+  PPCODE:
+    h = (HList*) nh;
+    fprintf(stderr, "=C= HEADER_REMOVE(%p, %s)\n", h, name);
 
-        put_header_value_on_perl_stack(aTHX_ self, field, len);
+    /* We look for the current values for the header and keep a reference to them */
+    s = hlist_get_header(h, name);
+    count = s ? slist_size(s) : 0;
+    fprintf(stderr, "=C= header_remove: will later return %d values\n", count);
+    if (s) {
+        fprintf(stderr, "=C= header_remove: making a shallow copy\n");
+        t = slist_ref(s);
 
-        /* we are setting the local SP variable to the value in THX */
-        SPAGAIN;
+        /* Erase what is already there for this header */
+        hlist_del_header(h, name);
+        fprintf(stderr, "=C= header_remove: deleted key [%s]\n", name);
+    }
 
-        __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
+    /* We now can put in the return stack all the original values */
+    count = t ? slist_size(t) : 0;
+    fprintf(stderr, "=C= header_remove: returning %d values\n", count);
+    EXTEND(SP, count);
+    for (s = t; s != 0; s = s->nxt) {
+      if (!s->str) {
+        continue;
+      }
+
+      /* TODO: This can probably be optimised A LOT*/
+      fprintf(stderr, "=C= header_remove: returning [%s]\n", s->str);
+      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+    }
+
+    fprintf(stderr, "=C= header_remove: now erasing the %d values for %p\n", count, t);
+    slist_unref(t);
+    fprintf(stderr, "=C= header_remove: finished erasing the %d values\n", count);
+
+
+void
+hhf_header_names(unsigned long nh)
+
+  PREINIT:
+    HList* h = 0;
+    HList* t = 0;
+
+  PPCODE:
+    h = (HList*) nh;
+    fprintf(stderr, "=C= HEADER_NAMES(%p)\n", h);
+
+    for (t = h; t != 0; t = t->nxt) {
+      if (!t->name) {
+        continue;
+      }
+
+      EXTEND(SP, 1);
+
+      /* TODO: This can probably be optimised A LOT*/
+      fprintf(stderr, "=C= header_names: returning [%s]\n", t->canonical_name);
+      PUSHs(sv_2mortal(newSVpv(t->canonical_name, 0)));
+    }
