@@ -93,7 +93,7 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     if ( h == NULL || !SvOK(*h) )
         /* If the field is not found, don't put anything on stack -> that will return () to perl */
         return false;
-    
+
     if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV ) {
         /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
         av_entry = (AV *) SvRV(*h);
@@ -244,6 +244,85 @@ _standardize_field_name(SV *field)
         handle_standard_case(aTHX_ field_name, len);
         RETVAL = field_name;
     OUTPUT: RETVAL
+
+void
+header( SV *self, ... )
+    PREINIT:
+        int     count, arg, i;
+        char    *field, *field_orig, *retval;
+        STRLEN  len;
+        HV      *seen;
+        SV      *args[items];
+    PPCODE:
+        if ( items <= 1 )
+            croak("Usage: $h->header($field, ...)");
+
+        if ( items == 2 ) {
+            PUSHMARK(SP);
+            PUSHs( self );
+            PUSHs( ST(1) );
+            PUTBACK;
+            count = call_method( "_header_get", G_ARRAY );
+            SPAGAIN;
+        } else if ( items == 3 ) {
+            PUSHMARK(SP);
+            PUSHs( self );
+            PUSHs( ST(1) );
+            PUSHs( ST(2) );
+            PUTBACK;
+            count = call_method( "_header_set", G_ARRAY );
+            SPAGAIN;
+        } else {
+            /* save the args in the stack before we overwrite them with results */
+            for ( arg = 1; arg < items; arg++ ) {
+                args[arg] = ST(arg);
+            }
+
+            seen = newHV();
+            for ( arg = 1; arg < items; arg++ ) {
+                /* lc $field - but don't modify the original */
+                field_orig = SvPV( args[arg], len );
+                field = (char *) alloca(len + 1);
+                strcpy( field, field_orig );
+                for ( i = 0; i < len; i++ )
+                    field[i] = tolower( field[i] );
+
+                PUSHMARK(SP);
+                PUSHs( self );
+                PUSHs( args[arg] );
+                PUSHs( args[++arg] );
+                PUTBACK;
+
+                if ( hv_exists(seen, field, len) ) {
+                    count = call_method( "_header_push", G_ARRAY );
+                } else {
+                    hv_store( seen, field, len, newSViv(1), 0 );
+                    count = call_method( "_header_set", G_ARRAY );
+                }
+                SPAGAIN;
+            }
+        }
+
+        if ( GIMME_V == G_ARRAY ) {
+            XSRETURN(count);
+        } else if ( count == 0 ) {
+            PUSHs(&PL_sv_undef);
+            PUTBACK;
+            XSRETURN(1);
+        } else if ( count == 1 ) {
+            XSRETURN(count);
+        } else {
+            retval = SvPV_nolen(ST(1));
+            for ( i = 2; i < items; i++ ) {
+                strcat( retval, ", " );
+                strcat( retval, SvPV_nolen(ST(i)) );
+            }
+            len = strlen(retval);
+
+            PUSHs( sv_2mortal(newSVpv(retval, len)) );
+            PUTBACK;
+            XSRETURN(1);
+        }
 
 void
 push_header( SV *self, ... )
