@@ -48,7 +48,7 @@ hhf_hlist_clear(unsigned long nh)
 
 
 void
-hhf_header_get(unsigned long nh, const char* name)
+hhf_hlist_header_get(unsigned long nh, const char* name)
 
   PREINIT:
     HList* h = 0;
@@ -63,7 +63,7 @@ hhf_header_get(unsigned long nh, const char* name)
     int count = s ? slist_size(s) : 0;
     if (count <= 0) {
       fprintf(stderr, "=C= header_get: empty values\n");
-      return;
+      XSRETURN_EMPTY;
     }
     fprintf(stderr, "=C= header_get: returning %d values\n", count);
     EXTEND(SP, count);
@@ -79,7 +79,7 @@ hhf_header_get(unsigned long nh, const char* name)
 
 
 void
-hhf_header_set(unsigned long nh, int new_only, int keep_previous, const char* name, SV* val)
+hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const char* name, SV* val)
 
   PREINIT:
     HList* h = 0;
@@ -101,7 +101,7 @@ hhf_header_set(unsigned long nh, int new_only, int keep_previous, const char* na
       if (new_only) {
         /* header should not have existed before */
         fprintf(stderr, "=C= header_set: tried to init already-existing header, bye\n");
-        return;
+        XSRETURN_EMPTY;
       }
 
       if (keep_previous) {
@@ -176,7 +176,7 @@ hhf_header_set(unsigned long nh, int new_only, int keep_previous, const char* na
 
 
 void
-hhf_header_remove(unsigned long nh, const char* name)
+hhf_hlist_header_remove(unsigned long nh, const char* name)
 
   PREINIT:
     HList* h = 0;
@@ -221,7 +221,7 @@ hhf_header_remove(unsigned long nh, const char* name)
 
 
 void
-hhf_header_names(unsigned long nh)
+hhf_hlist_header_names(unsigned long nh)
 
   PREINIT:
     HList* h = 0;
@@ -242,3 +242,20 @@ hhf_header_names(unsigned long nh)
       fprintf(stderr, "=C= header_names: returning [%s]\n", t->canonical_name);
       PUSHs(sv_2mortal(newSVpv(t->canonical_name, 0)));
     }
+
+
+void*
+hhf_hlist_clone(unsigned long nh)
+
+  PREINIT:
+    HList* h = 0;
+    HList* t = 0;
+
+  CODE:
+    h = (HList*) nh;
+    t = hlist_clone(h);
+    fprintf(stderr, "=C= CLONE(%p) => %p\n", h, t);
+
+    RETVAL = t;
+
+  OUTPUT: RETVAL

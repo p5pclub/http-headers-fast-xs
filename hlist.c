@@ -5,19 +5,28 @@
 #include "gmem.h"
 #include "hlist.h"
 
-static SList* slist_alloc(void) {
-  SList* s = 0;
-  GMEM_NEW(s, SList*, sizeof(SList));
-  if (s == 0) {
+static SList* slist_alloc(SList* s) {
+  SList* n = 0;
+  GMEM_NEW(n, SList*, sizeof(SList));
+  if (n == 0) {
     return 0;
   }
 
   // The head node is always empty, to signal an empty list.
-  s->nxt = 0;
-  s->str = 0;
-  s->refcnt = 0;
+  n->nxt = 0;
+  n->str = 0;
+  n->refcnt = 0;
 
-  return s;
+  if (s) {
+    if (s->str) {
+      int l = strlen(s->str) + 1;
+      GMEM_NEW(n->str, char*, l);
+      memcpy(n->str, s->str, l);
+    }
+    n->refcnt = s->refcnt;
+  }
+
+  return n;
 }
 
 static void slist_dealloc(SList* slist) {
@@ -32,7 +41,7 @@ static void slist_dealloc(SList* slist) {
 
 SList* slist_ref(SList* slist) {
   if (slist == 0) {
-    slist = slist_alloc();
+    slist = slist_alloc(0);
     if (slist == 0) {
       return 0;
     }
@@ -64,19 +73,14 @@ SList* slist_unref(SList* slist) {
 SList* slist_clone(SList* slist) {
   SList* h = 0;
   SList* q = 0;
-  for (SList* s = slist; s != 0; s = s->nxt) {
-    SList* p = slist_alloc();
-    if (s->str) {
-      int l = strlen(s->str) + 1;
-      GMEM_NEW(p->str, char*, l);
-      memcpy(p->str, s->str, l);
-    }
+  for (SList* p = slist; p != 0; p = p->nxt) {
+    SList* n = slist_alloc(p);
     if (q != 0) {
-      q->nxt = p;
+      q->nxt = n;
     }
-    q = p;
+    q = n;
     if (h == 0) {
-      h = p;
+      h = n;
     }
   }
   return h;
@@ -157,23 +161,39 @@ char* slist_format(const SList* slist, char separator, char* buffer, int length)
   return buffer;
 }
 
-static HList* hlist_alloc()
+static HList* hlist_alloc(HList* h)
 {
-  HList* h = 0;
-  GMEM_NEW(h, HList*, sizeof(HList));
-  if (h == 0) {
+  HList* n = 0;
+  GMEM_NEW(n, HList*, sizeof(HList));
+  if (n == 0) {
     return 0;
   }
 
   // The head node is always empty, to signal an empty list.
-  h->nxt = 0;
-  h->name = 0;
-  h->canonical_name = 0;
-  h->canonical_offset = 0;
-  h->slist = 0;
-  h->refcnt = 0;
+  n->nxt = 0;
+  n->name = 0;
+  n->canonical_name = 0;
+  n->canonical_offset = 0;
+  n->slist = 0;
+  n->refcnt = 0;
 
-  return h;
+  if (h) {
+    if (h->name) {
+      int l = strlen(h->name) + 1;
+      GMEM_NEW(n->name, char*, l);
+      memcpy(n->name, h->name, l);
+    }
+    if (h->canonical_name) {
+      int l = strlen(h->canonical_name) + 1;
+      GMEM_NEW(n->canonical_name, char*, l);
+      memcpy(n->canonical_name, h->canonical_name, l);
+    }
+    n->canonical_offset = h->canonical_offset;
+    n->slist = slist_clone(h->slist);
+    n->refcnt = h->refcnt;
+  }
+
+  return n;
 }
 
 static void hlist_dealloc(HList* h)
@@ -194,7 +214,7 @@ static void hlist_dealloc(HList* h)
 HList* hlist_ref(HList* h)
 {
   if (h == 0) {
-    h = hlist_alloc();
+    h = hlist_alloc(0);
     if (h == 0) {
       return 0;
     }
@@ -230,6 +250,23 @@ HList* hlist_unref(HList* h)
 HList* hlist_create(void)
 {
   return hlist_ref(0);
+}
+
+HList* hlist_clone(HList* hlist)
+{
+  HList* h = 0;
+  HList* q = 0;
+  for (HList* p = hlist; p != 0; p = p->nxt) {
+    HList* n = hlist_alloc(p);
+    if (q != 0) {
+      q->nxt = n;
+    }
+    q = n;
+    if (h == 0) {
+      h = n;
+    }
+  }
+  return h;
 }
 
 void hlist_clear(HList* hlist) {
@@ -270,6 +307,25 @@ void hlist_dump(HList* hlist, FILE* fp)
 
 static char* canonicalise(const char* name, int* length)
 {
+  /*
+   * Exceptions:
+   *
+   * TE
+   * ETag
+   * WWW-Authenticate
+   * Content-MD5
+   */
+  static struct Exceptions {
+    const char* result;
+    const char* change;
+  } exceptions[] = {
+    { "Te"              , "TE"               },
+    { "Etag"            , "ETag"             },
+    { "Www-Authenticate", "WWW-Authenticate" },
+    { "Content-Md5"     , "Content-MD5"      },
+    { 0, 0 },
+  };
+
   if (!name) {
     return 0;
   }
@@ -297,6 +353,15 @@ static char* canonicalise(const char* name, int* length)
     }
   }
   canonical[j] = '\0';
+
+  for (int j = 0; exceptions[j].result != 0; ++j) {
+    if (strcmp(canonical, exceptions[j].result) == 0) {
+      fprintf(stderr, "@@@ Exception: [%s] => [%s]\n", canonical, exceptions[j].change);
+      strcpy(canonical, exceptions[j].change);
+      break;
+    }
+  }
+
   return canonical;
 }
 

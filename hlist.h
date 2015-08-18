@@ -56,6 +56,9 @@ HList* hlist_unref(HList* hlist);
 // Create a new, empty HList.
 HList* hlist_create(void);
 
+// Create a deep clone of an HList.
+HList* hlist_clone(HList* hlist);
+
 // Erase all elements of an HList; leave it as just created.
 void hlist_clear(HList* hlist);
 
