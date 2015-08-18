@@ -190,7 +190,7 @@ __push_header_and_return_old_values(pTHX_ HV *self, char *field, STRLEN len, SV 
         } else {
             av_push( h_values, val );
         }
-        *h = newRV_noinc( (SV *) h_values );
+        *h = newRV( (SV *) h_values );
 
         return 1;
     }
