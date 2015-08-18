@@ -312,8 +312,9 @@ header( SV *self, ... )
         } else if ( count == 1 ) {
             XSRETURN(count);
         } else {
-            retval = SvPV_nolen(ST(1));
-            for ( i = 2; i < items; i++ ) {
+            /* scalar context - return join( ', ', @old ) */
+            retval = SvPV_nolen(ST(0));
+            for ( i = 1; i < count; i++ ) {
                 strcat( retval, ", " );
                 strcat( retval, SvPV_nolen(ST(i)) );
             }
