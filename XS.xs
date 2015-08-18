@@ -151,6 +151,74 @@ void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     }
 }
 
+int
+__push_header_and_return_old_values(pTHX_ HV *self, char *field, STRLEN len, SV *val)
+{
+    dSP;
+    SV  **h, **a_value;
+    AV  *h_values, *values;
+    int i, top_index, old_count;
+
+    h = hv_fetch( self, field, len, 1 );
+    if ( h == NULL )
+        croak("hv_fetch() failed. This should not happen.");
+
+    if ( !SvOK(*h) ) {
+        /* no old value to return - just set the header value */
+        *h = val;
+        return 0;
+    }
+
+    if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+        /* old value to return is a simple scalar */
+        PUSHMARK(SP);
+        PUSHs(*h);
+        PUTBACK;
+
+        /* header becomes an array ref */
+        h_values = newAV();
+        av_push( h_values, *h );
+
+        if ( SvROK(val) && SvTYPE(SvRV(val)) == SVt_PVAV ) {
+            /* value to add is an array ref */
+            values = (AV *) SvRV(val);
+            top_index = av_len(values);
+            for (i = 0; i <= top_index; i++) {
+                a_value = av_fetch( values, i, 0 );
+                av_push( h_values, *a_value );
+            }
+        } else {
+            av_push( h_values, val );
+        }
+        *h = newRV_noinc( (SV *) h_values );
+
+        return 1;
+    }
+
+    /* old header value is an array ref */
+    PUSHMARK(SP);
+    top_index = av_len( (AV *) SvRV(*h) );
+    for (i = 0; i <= top_index; i++) {
+        a_value = av_fetch( (AV *) SvRV(*h), i, 0 );
+        XPUSHs( *a_value );
+    }
+    old_count = top_index + 1;
+    PUTBACK;
+
+    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+        /* value to add is an array ref */
+        values = (AV *) SvRV(val);
+        top_index  = av_len(values);
+        for ( i = 0; i <= top_index; i++ ) {
+            a_value = av_fetch( values, i, 0 );
+            av_push( (AV *) SvRV(*h), *a_value );
+        }
+    } else {
+        av_push( (AV *) SvRV(*h), val );
+    }
+    return old_count;
+}
+
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
@@ -256,6 +324,7 @@ void
 _header_push(SV *self, SV *field_name, SV *val)
     PREINIT:
         char   *field;
+        int    old_count;
         STRLEN len;
     PPCODE:
         field = SvPV(field_name, len);
@@ -271,4 +340,11 @@ _header_push(SV *self, SV *field_name, SV *val)
         /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
 
-        __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
+        if ( GIMME_V == G_VOID ) {
+            __push_header( aTHX_ (HV *) SvRV(self), field, len, newSVsv(val) );
+            return;
+        }
+
+        old_count = __push_header_and_return_old_values( aTHX_
+                    (HV *) SvRV(self), field, len, newSVsv(val) );
+        XSRETURN(old_count);
