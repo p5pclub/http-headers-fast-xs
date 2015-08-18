@@ -318,9 +318,9 @@ header( SV *self, ... )
                 strcat( retval, ", " );
                 strcat( retval, SvPV_nolen(ST(i)) );
             }
-            len = strlen(retval);
 
-            PUSHs( sv_2mortal(newSVpv(retval, len)) );
+            PUSHMARK(SP);
+            PUSHs( sv_2mortal(newSVpv(retval, 0)) );
             PUTBACK;
             XSRETURN(1);
         }
