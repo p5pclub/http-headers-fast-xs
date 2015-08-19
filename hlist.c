@@ -305,7 +305,7 @@ void hlist_dump(HList* hlist, FILE* fp)
   fflush(fp);
 }
 
-static char* canonicalise(const char* name, int* length)
+static char* canonicalise(const char* name, int translate_underscore, int* length)
 {
   /*
    * Exceptions:
@@ -348,7 +348,7 @@ static char* canonicalise(const char* name, int* length)
       canonical[j] = in_word ? tolower(name[j]) : toupper(name[j]);
       in_word = 1;
     } else {
-      canonical[j] = name[j] == '_' ? '-' : name[j];
+      canonical[j] = translate_underscore && name[j] == '_' ? '-' : name[j];
       in_word = 0;
     }
   }
@@ -365,7 +365,8 @@ static char* canonicalise(const char* name, int* length)
   return canonical;
 }
 
-static HList* hlist_lookup(HList* hlist, const char* name, int insert, HList** prev)
+static HList* hlist_lookup(HList* hlist, int translate_underscore,
+                           const char* name, int insert, HList** prev)
 {
   if (prev) {
     *prev = 0;
@@ -376,7 +377,7 @@ static HList* hlist_lookup(HList* hlist, const char* name, int insert, HList** p
   }
 
   int l = 0;
-  char* canonical = canonicalise(name, &l);
+  char* canonical = canonicalise(name, translate_underscore, &l);
   if (!canonical) {
     return 0;
   }
@@ -424,18 +425,22 @@ static HList* hlist_lookup(HList* hlist, const char* name, int insert, HList** p
   return h;
 }
 
-SList* hlist_add_header(HList* hlist, const char* name, const char* value)
+SList* hlist_add_header(HList* hlist, int translate_underscore,
+                        const char* name, const char* value)
 {
-  HList* h = hlist_lookup(hlist, name, 1, 0);
+  HList* h = hlist_lookup(hlist, translate_underscore,
+                          name, 1, 0);
   slist_add(h->slist, value);
   fprintf(stderr, "@@@ add_header added [%s] to [%s]\n", value, name);
   return h->slist;
 }
 
-void hlist_del_header(HList* hlist, const char* name)
+void hlist_del_header(HList* hlist, int translate_underscore,
+                      const char* name)
 {
   HList* q = 0;
-  HList* h = hlist_lookup(hlist, name, 0, &q);
+  HList* h = hlist_lookup(hlist, translate_underscore,
+                          name, 0, &q);
 
   if (!h) {
     fprintf(stderr, "@@@ del_header found nothing for [%s]\n", name);
@@ -447,9 +452,11 @@ void hlist_del_header(HList* hlist, const char* name)
   fprintf(stderr, "@@@ del_header deleted [%s]\n", name);
 }
 
-SList* hlist_get_header(HList* hlist, const char* name)
+SList* hlist_get_header(HList* hlist, int translate_underscore,
+                        const char* name)
 {
-  HList* h = hlist_lookup(hlist, name, 0, 0);
+  HList* h = hlist_lookup(hlist, translate_underscore,
+                          name, 0, 0);
 
   if (!h) {
     fprintf(stderr, "@@@ get_header found nothing for [%s]\n", name);

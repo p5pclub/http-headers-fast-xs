@@ -48,7 +48,7 @@ hhf_hlist_clear(unsigned long nh)
 
 
 void
-hhf_hlist_header_get(unsigned long nh, const char* name)
+hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* name)
 
   PREINIT:
     HList* h = 0;
@@ -56,10 +56,9 @@ hhf_hlist_header_get(unsigned long nh, const char* name)
 
   PPCODE:
     h = (HList*) nh;
-    fprintf(stderr, "=C= header_get hlist %p\n", h);
-
-    fprintf(stderr, "=C= header_get: name=[%s]\n", name);
-    s = hlist_get_header(h, name);
+    fprintf(stderr, "=C= HEADER_GET(%p, %d, %s)\n", h, translate_underscore, name);
+    s = hlist_get_header(h, translate_underscore,
+                         name);
     int count = s ? slist_size(s) : 0;
     if (count <= 0) {
       fprintf(stderr, "=C= header_get: empty values\n");
@@ -79,7 +78,7 @@ hhf_hlist_header_get(unsigned long nh, const char* name)
 
 
 void
-hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const char* name, SV* val)
+hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, const char* name, SV* val)
 
   PREINIT:
     HList* h = 0;
@@ -90,11 +89,12 @@ hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const ch
 
   PPCODE:
     h = (HList*) nh;
-    fprintf(stderr, "=C= HEADER_SET(%p, %d, %d, %s, %p)\n", h, new_only, keep_previous, name, val);
+    fprintf(stderr, "=C= HEADER_SET(%p, %d, %d, %d, %s, %p)\n",
+            h, translate_underscore, new_only, keep_previous, name, val);
 
-    fprintf(stderr, "=C= header_set: name=[%s]\n", name);
     /* We look for the current values for the header and keep a reference to them */
-    s = hlist_get_header(h, name);
+    s = hlist_get_header(h, translate_underscore,
+                         name);
     count = s ? slist_size(s) : 0;
     fprintf(stderr, "=C= header_set: will later return %d values\n", count);
     if (s) {
@@ -114,13 +114,11 @@ hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const ch
         t = slist_ref(s);
 
         /* Erase what is already there for this header */
-        hlist_del_header(h, name);
+        hlist_del_header(h, translate_underscore,
+                         name);
         fprintf(stderr, "=C= header_set: deleted key [%s]\n", name);
       }
     }
-
-    /* hlist_new_header(h, name, 0); */
-    /* fprintf(stderr, "=C= header_set: added key [%s]\n", name); */
 
     if (val) {
 
@@ -128,7 +126,8 @@ hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const ch
       if (SvIOK(val) || SvNOK(val) || SvPOK(val)) {
         STRLEN slen;
         const char* elem = SvPV(val, slen);
-        hlist_add_header(h, name, elem);
+        hlist_add_header(h, translate_underscore,
+                         name, elem);
         fprintf(stderr, "=C= header_set: added single value [%s]\n", elem);
       }
 
@@ -148,7 +147,8 @@ hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const ch
             if (SvIOK(*svp) || SvNOK(*svp) || SvPOK(*svp)) {
               STRLEN slen;
               const char* elem = SvPV(*svp, slen);
-              hlist_add_header(h, name, elem);
+              hlist_add_header(h, translate_underscore,
+                               name, elem);
               fprintf(stderr, "=C= header_set: added value %d [%s]\n", j, elem);
             }
           }
@@ -176,7 +176,7 @@ hhf_hlist_header_set(unsigned long nh, int new_only, int keep_previous, const ch
 
 
 void
-hhf_hlist_header_remove(unsigned long nh, const char* name)
+hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* name)
 
   PREINIT:
     HList* h = 0;
@@ -186,10 +186,12 @@ hhf_hlist_header_remove(unsigned long nh, const char* name)
 
   PPCODE:
     h = (HList*) nh;
-    fprintf(stderr, "=C= HEADER_REMOVE(%p, %s)\n", h, name);
+    fprintf(stderr, "=C= HEADER_REMOVE(%p, %d, %s)\n",
+            h, translate_underscore, name);
 
     /* We look for the current values for the header and keep a reference to them */
-    s = hlist_get_header(h, name);
+    s = hlist_get_header(h, translate_underscore,
+                         name);
     count = s ? slist_size(s) : 0;
     fprintf(stderr, "=C= header_remove: will later return %d values\n", count);
     if (s) {
@@ -197,7 +199,8 @@ hhf_hlist_header_remove(unsigned long nh, const char* name)
         t = slist_ref(s);
 
         /* Erase what is already there for this header */
-        hlist_del_header(h, name);
+        hlist_del_header(h, translate_underscore,
+                         name);
         fprintf(stderr, "=C= header_remove: deleted key [%s]\n", name);
     }
 

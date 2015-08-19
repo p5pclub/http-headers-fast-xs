@@ -96,19 +96,25 @@ sub header {
     my (@old);
 
     if (@_ == 1) {
-        @old = hhf_hlist_header_get($self->{hlist}, @_);
+        @old = hhf_hlist_header_get($self->{hlist},
+                                    $TRANSLATE_UNDERSCORE // 0,
+                                    @_);
     } elsif( @_ == 2 ) {
-        @old = hhf_hlist_header_set($self->{hlist}, 0, 0, @_);
-        printf("From hhf_hlist_header_set 1 got [%s]\n", Data::Dumper::Dumper(\@old));
+        @old = hhf_hlist_header_set($self->{hlist},
+                                    $TRANSLATE_UNDERSCORE // 0,
+                                    0, 0, @_);
     } else {
         my %seen;
         while (@_) {
             my $field = shift;
             if ( $seen{ lc $field }++ ) {
-                @old = hhf_hlist_header_set($self->{hlist}, 0, 1, $field, shift);
+                @old = hhf_hlist_header_set($self->{hlist},
+                                            $TRANSLATE_UNDERSCORE // 0,
+                                            0, 1, $field, shift);
             } else {
-                @old = hhf_hlist_header_set($self->{hlist}, 0, 0, $field, shift);
-                printf("From hhf_hlist_header_set 2 got [%s]\n", Data::Dumper::Dumper(\@old));
+                @old = hhf_hlist_header_set($self->{hlist},
+                                            $TRANSLATE_UNDERSCORE // 0,
+                                            0, 0, $field, shift);
             }
         }
     }
@@ -128,10 +134,14 @@ sub push_header {
 
     if (@_ == 2) {
         my ($field, $val) = @_;
-        hhf_hlist_header_set($self->{hlist}, 0, 1, $field, $val);
+        hhf_hlist_header_set($self->{hlist},
+                             $TRANSLATE_UNDERSCORE // 0,
+                             0, 1, $field, $val);
     } else {
         while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
-            hhf_hlist_header_set($self->{hlist}, 0, 1, $field, $val);
+            hhf_hlist_header_set($self->{hlist},
+                                 $TRANSLATE_UNDERSCORE // 0,
+                                 0, 1, $field, $val);
         }
     }
     return ();
@@ -140,14 +150,18 @@ sub push_header {
 sub init_header {
     Carp::croak('Usage: $h->init_header($field, $val)') if @_ != 3;
     my ($self, $field, $val) = @_;
-    hhf_hlist_header_set($self->{hlist}, 1, 0, $field, $val);
+    hhf_hlist_header_set($self->{hlist},
+                         $TRANSLATE_UNDERSCORE // 0,
+                         1, 0, $field, $val);
 }
 
 sub remove_header {
     my ( $self, @fields ) = @_;
     my @values;
     for my $field (@fields) {
-        my @ret = hhf_hlist_header_remove($self->{hlist}, $field);
+        my @ret = hhf_hlist_header_remove($self->{hlist},
+                                          $TRANSLATE_UNDERSCORE // 0,
+                                          $field);
         push(@values, @ret);
     }
     return @values;
@@ -158,7 +172,9 @@ sub remove_content_headers {
     my $c = ref($self)->new;
     for my $field (grep $entity_header{$_} || /^Content-/, hhf_hlist_header_names($self->{hlist})) {
         printf("*** REMOVING CONTENT HEADER [%s]\n", $field);
-        my @values = hhf_hlist_header_remove($self->{hlist}, $field);
+        my @values = hhf_hlist_header_remove($self->{hlist},
+                                             $TRANSLATE_UNDERSCORE // 0,
+                                             $field);
         $c->header($field, \@values);
     }
     $c;
@@ -234,7 +250,9 @@ sub _header {
 
     $op ||= defined($val) ? $OP_SET : $OP_GET;
 
-    my @old = hhf_hlist_header_get($self->{hlist}, $field);
+    my @old = hhf_hlist_header_get($self->{hlist},
+                                   $TRANSLATE_UNDERSCORE // 0,
+                                   $field);
 
     unless ( $op == $OP_GET || ( $op == $OP_INIT && @old ) ) {
         if ( defined($val) ) {
@@ -245,10 +263,14 @@ sub _header {
             else {
                 push( @new, @$val );
             }
-            hhf_hlist_header_set($self->{hlist}, 0, 0, $field, \@new);
+            hhf_hlist_header_set($self->{hlist},
+                                 $TRANSLATE_UNDERSCORE // 0,
+                                 0, 0, $field, \@new);
         }
         elsif ( $op != $OP_PUSH ) {
-            hhf_hlist_header_remove($self->{hlist}, $field);
+            hhf_hlist_header_remove($self->{hlist},
+                                    $TRANSLATE_UNDERSCORE // 0,
+                                    $field);
         }
     }
     @old;
@@ -274,7 +296,9 @@ sub scan {
     my ( $self, $sub ) = @_;
     for my $key (@{ $self->_sorted_field_names }) {
         next if substr($key, 0, 1) eq '_';
-        my @vals = hhf_hlist_header_get($self->{hlist}, $key);
+        my @vals = hhf_hlist_header_get($self->{hlist},
+                                        $TRANSLATE_UNDERSCORE // 0,
+                                        $key);
         for my $val (@vals) {
             $sub->( $standard_case{$key} || $key, $val );
         }
@@ -299,7 +323,9 @@ sub _as_string {
     my @result;
     for my $key ( @$fieldnames ) {
         next if index($key, '_') == 0;
-        my @vals = hhf_hlist_header_get($self->{hlist}, $key);
+        my @vals = hhf_hlist_header_get($self->{hlist},
+                                        $TRANSLATE_UNDERSCORE // 0,
+                                        $key);
         for my $val (@vals) {
             my $field = $standard_case{$key} || $key;
             $field =~ s/^://;
@@ -339,9 +365,13 @@ sub _date_header {
     my ( $self, $header, $time ) = @_;
     my $old;
     if ( defined $time ) {
-        ($old) = hhf_hlist_header_set($self->{hlist}, 0, 0, $header, HTTP::Date::time2str($time) );
+        ($old) = hhf_hlist_header_set($self->{hlist},
+                                      $TRANSLATE_UNDERSCORE // 0,
+                                      0, 0, $header, HTTP::Date::time2str($time) );
     } else {
-        ($old) = hhf_hlist_header_get($self->{hlist}, $header);
+        ($old) = hhf_hlist_header_get($self->{hlist},
+                                      $TRANSLATE_UNDERSCORE // 0,
+                                      $header);
     }
     $old =~ s/;.*// if defined($old);
     HTTP::Date::str2time($old);
@@ -366,8 +396,12 @@ sub last_modified       { shift->_date_header( 'last-modified',       @_ ); }
 
 sub content_type {
     my $self = shift;
-    my $ct   = hhf_hlist_header_get($self->{hlist}, 'content-type');
-    hhf_hlist_header_set($self->{hlist}, 0, 0, 'content-type', shift) if @_;
+    my $ct   = hhf_hlist_header_get($self->{hlist},
+                                    $TRANSLATE_UNDERSCORE // 0,
+                                    'content-type');
+    hhf_hlist_header_set($self->{hlist},
+                         $TRANSLATE_UNDERSCORE // 0,
+                         0, 0, 'content-type', shift) if @_;
     $ct = $ct->[0] if ref($ct) eq 'ARRAY';
     return '' unless defined($ct) && length($ct);
     my @ct = split( /;\s*/, $ct, 2 );
@@ -380,7 +414,9 @@ sub content_type {
 
 sub content_type_charset {
     my $self = shift;
-    my $h = hhf_hlist_header_get($self->{hlist}, 'content-type');
+    my $h = hhf_hlist_header_get($self->{hlist},
+                                 $TRANSLATE_UNDERSCORE // 0,
+                                 'content-type');
     $h = $h->[0] if ref($h);
     $h = "" unless defined $h;
     my @v = _split_header_words($h);
@@ -516,7 +552,7 @@ sub referer {
         # Strip fragment per RFC 2616, section 14.36.
         my $uri = shift;
         if ( ref($uri) ) {
-#            require URI;
+            require URI;
             $uri = $uri->clone;
             $uri->fragment(undef);
         }

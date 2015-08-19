@@ -65,19 +65,17 @@ void hlist_clear(HList* hlist);
 // Dump an HList to a FILE stream.
 void hlist_dump(HList* hlist, FILE* fp);
 
-// Convert string stored in name into canonical form, and store the result
-// into canonical, whose max length is the 3rd parameter.  Return the real length
-// for name / canonical.
-int hlist_canonicalise(const char* name, char* canonical, int length);
-
 // Add a value to the SList for a given header name.
 // If header name already exists, append to its values; if not, create it.
-SList* hlist_add_header(HList* hlist, const char* name, const char* value);
+SList* hlist_add_header(HList* hlist, int translate_underscore,
+                        const char* name, const char* value);
 
 // Delete a given header from an HList, if that header is there.
-void hlist_del_header(HList* hlist, const char* name);
+void hlist_del_header(HList* hlist, int translate_underscore,
+                      const char* name);
 
 // Get the SList with values for a given header name.
-SList* hlist_get_header(HList* hlist, const char* name);
+SList* hlist_get_header(HList* hlist, int translate_underscore,
+                        const char* name);
 
 #endif
