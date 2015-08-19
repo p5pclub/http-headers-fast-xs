@@ -1,7 +1,7 @@
 #include <ctype.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "glog.h"
 #include "gmem.h"
 #include "hlist.h"
 
@@ -34,7 +34,7 @@ static void slist_dealloc(SList* slist) {
     return;
   }
 
-  fprintf(stderr, "@@@ SLIST deleting [%s]\n", slist->str ? slist->str : "*NULL*");
+  GLOG(("@@@ SLIST deleting [%s]\n", slist->str ? slist->str : "*NULL*"));
   GMEM_DEL(slist->str, char*, -1);
   GMEM_DEL(slist, SList*, sizeof(SList));
 }
@@ -57,7 +57,7 @@ SList* slist_unref(SList* slist) {
   }
 
   if (--slist->refcnt > 0) {
-    fprintf(stderr, "@@@ WOW SLIST has refcnt %d for [%s]\n", slist->refcnt, slist->str ? slist->str : "*NULL*");
+    GLOG(("@@@ WOW SLIST has refcnt %d for [%s]\n", slist->refcnt, slist->str ? slist->str : "*NULL*"));
     return slist;
   }
 
@@ -202,9 +202,9 @@ static void hlist_dealloc(HList* h)
     return;
   }
 
-  fprintf(stderr, "@@@ HLIST deleting [%s/%s]\n",
-          h->canonical_name ? h->canonical_name : "*NULL*",
-          h->name ? h->name : "*NULL*");
+  GLOG(("@@@ HLIST deleting [%s/%s]\n",
+        h->canonical_name ? h->canonical_name : "*NULL*",
+        h->name ? h->name : "*NULL*"));
   GMEM_DEL(h->canonical_name, char*, -1);
   GMEM_DEL(h->name, char*, -1);
   slist_unref(h->slist);
@@ -231,10 +231,10 @@ HList* hlist_unref(HList* h)
   }
 
   if (--h->refcnt > 0) {
-    fprintf(stderr, "@@@ WOW HLIST has refcnt %d for [%s/%s]\n",
-            h->refcnt,
-            h->canonical_name ? h->canonical_name : "*NULL*",
-            h->name ? h->name : "*NULL*");
+    GLOG(("@@@ WOW HLIST has refcnt %d for [%s/%s]\n",
+          h->refcnt,
+          h->canonical_name ? h->canonical_name : "*NULL*",
+          h->name ? h->name : "*NULL*"));
     return h;
   }
 
@@ -299,7 +299,7 @@ void hlist_dump(HList* hlist, FILE* fp)
       fprintf(fp, ">  %3d: [%s]\n", ++count, s->str);
     }
     char* t = slist_format(h->slist, ':', 0, 0);
-    printf("> Format: [%s]\n", t);
+    fprintf(fp, "> Format: [%s]\n", t);
     GMEM_DEL(t, char*, -1);
   }
   fflush(fp);
@@ -356,7 +356,7 @@ static char* canonicalise(const char* name, int translate_underscore, int* lengt
 
   for (int j = 0; exceptions[j].result != 0; ++j) {
     if (strcmp(canonical, exceptions[j].result) == 0) {
-      fprintf(stderr, "@@@ Exception: [%s] => [%s]\n", canonical, exceptions[j].change);
+      GLOG(("@@@ Exception: [%s] => [%s]\n", canonical, exceptions[j].change));
       strcpy(canonical, exceptions[j].change);
       break;
     }
@@ -395,7 +395,7 @@ static HList* hlist_lookup(HList* hlist, int translate_underscore,
     q = h;
   }
 
-  fprintf(stderr, "@@@ Lookup header [%s] -> %p\n", name, h);
+  GLOG(("@@@ Lookup header [%s] -> %p\n", name, h));
   if (h) {
     // If it already exists, we don't need this
     GMEM_DEL(canonical, char*, l);
@@ -431,7 +431,7 @@ SList* hlist_add_header(HList* hlist, int translate_underscore,
   HList* h = hlist_lookup(hlist, translate_underscore,
                           name, 1, 0);
   slist_add(h->slist, value);
-  fprintf(stderr, "@@@ add_header added [%s] to [%s]\n", value, name);
+  GLOG(("@@@ add_header added [%s] to [%s]\n", value, name));
   return h->slist;
 }
 
@@ -443,13 +443,13 @@ void hlist_del_header(HList* hlist, int translate_underscore,
                           name, 0, &q);
 
   if (!h) {
-    fprintf(stderr, "@@@ del_header found nothing for [%s]\n", name);
+    GLOG(("@@@ del_header found nothing for [%s]\n", name));
     return;
   }
 
   q->nxt = h->nxt;
   hlist_dealloc(h);
-  fprintf(stderr, "@@@ del_header deleted [%s]\n", name);
+  GLOG(("@@@ del_header deleted [%s]\n", name));
 }
 
 SList* hlist_get_header(HList* hlist, int translate_underscore,
@@ -459,10 +459,10 @@ SList* hlist_get_header(HList* hlist, int translate_underscore,
                           name, 0, 0);
 
   if (!h) {
-    fprintf(stderr, "@@@ get_header found nothing for [%s]\n", name);
+    GLOG(("@@@ get_header found nothing for [%s]\n", name));
     return 0;
   }
 
-  fprintf(stderr, "@@@ get_header found %p for [%s]\n", h->slist, name);
+  GLOG(("@@@ get_header found %p for [%s]\n", h->slist, name));
   return h->slist;
 }

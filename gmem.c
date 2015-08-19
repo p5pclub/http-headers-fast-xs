@@ -2,7 +2,16 @@
 #include <stdlib.h>
 #include "gmem.h"
 
-#ifdef GMEM_CHECK
+#ifndef GMEM_CHECK
+
+void gmem_new_called(const char* file, int line, void* var, long size) {
+}
+
+void gmem_del_called(const char* file, int line, void* var, long size) {
+}
+
+#else
+
 long gmem_new = 0;
 long gmem_del = 0;
 

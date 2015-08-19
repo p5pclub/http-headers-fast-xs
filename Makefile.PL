@@ -12,7 +12,7 @@ WriteMakefile(
     },
     AUTHOR         => 'Gonzalo Diethelm (gonzus@cpan.org)',
     LIBS           => [''],
-    DEFINE         => '-DGMEM_CHECK',
+#    DEFINE         => '-DGMEM_CHECK -DGLOG_SHOW',
     INC            => '-I.',
     OBJECT         => '$(O_FILES)',
 );

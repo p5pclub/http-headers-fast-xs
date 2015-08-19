@@ -26,9 +26,9 @@
 extern long gmem_new;
 extern long gmem_del;
 
+#endif
+
 void gmem_new_called(const char* file, int line, void* var, long size);
 void gmem_del_called(const char* file, int line, void* var, long size);
-
-#endif
 
 #endif
