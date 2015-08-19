@@ -409,6 +409,7 @@ sub scan {
     }
 }
 
+### Unchanged but called from this module
 sub _process_newline {
     local $_ = shift;
     my $endl = shift;
@@ -543,53 +544,54 @@ sub content_type_charset {
     return undef;
 }
 
-# sub _split_header_words
-# {
-#     my(@val) = @_;
-#     my @res;
-#     for (@val) {
-#         my @cur;
-#         while (length) {
-#             if (s/^\s*(=*[^\s=;,]+)//) {  # 'token' or parameter 'attribute'
-#                 push(@cur, $1);
-#                 # a quoted value
-#                 if (s/^\s*=\s*\"([^\"\\]*(?:\\.[^\"\\]*)*)\"//) {
-#                     my $val = $1;
-#                     $val =~ s/\\(.)/$1/g;
-#                     push(@cur, $val);
-#                     # some unquoted value
-#                 }
-#                 elsif (s/^\s*=\s*([^;,\s]*)//) {
-#                     my $val = $1;
-#                     $val =~ s/\s+$//;
-#                     push(@cur, $val);
-#                     # no value, a lone token
-#                 }
-#                 else {
-#                     push(@cur, undef);
-#                 }
-#             }
-#             elsif (s/^\s*,//) {
-#                 push(@res, [@cur]) if @cur;
-#                 @cur = ();
-#             }
-#             elsif (s/^\s*;// || s/^\s+//) {
-#                 # continue
-#             }
-#             else {
-#                 die "This should not happen: '$_'";
-#             }
-#         }
-#         push(@res, \@cur) if @cur;
-#     }
-#
-#     for my $arr (@res) {
-#         for (my $i = @$arr - 2; $i >= 0; $i -= 2) {
-#             $arr->[$i] = lc($arr->[$i]);
-#         }
-#     }
-#     return @res;
-# }
+### Unchanged but called from this module
+sub _split_header_words
+{
+    my(@val) = @_;
+    my @res;
+    for (@val) {
+        my @cur;
+        while (length) {
+            if (s/^\s*(=*[^\s=;,]+)//) {  # 'token' or parameter 'attribute'
+                push(@cur, $1);
+                # a quoted value
+                if (s/^\s*=\s*\"([^\"\\]*(?:\\.[^\"\\]*)*)\"//) {
+                    my $val = $1;
+                    $val =~ s/\\(.)/$1/g;
+                    push(@cur, $val);
+                    # some unquoted value
+                }
+                elsif (s/^\s*=\s*([^;,\s]*)//) {
+                    my $val = $1;
+                    $val =~ s/\s+$//;
+                    push(@cur, $val);
+                    # no value, a lone token
+                }
+                else {
+                    push(@cur, undef);
+                }
+            }
+            elsif (s/^\s*,//) {
+                push(@res, [@cur]) if @cur;
+                @cur = ();
+            }
+            elsif (s/^\s*;// || s/^\s+//) {
+                # continue
+            }
+            else {
+                die "This should not happen: '$_'";
+            }
+        }
+        push(@res, \@cur) if @cur;
+    }
+
+    for my $arr (@res) {
+        for (my $i = @$arr - 2; $i >= 0; $i -= 2) {
+            $arr->[$i] = lc($arr->[$i]);
+        }
+    }
+    return @res;
+}
 
 # sub content_is_html {
 #     my $self = shift;
