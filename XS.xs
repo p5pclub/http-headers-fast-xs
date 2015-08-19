@@ -67,19 +67,15 @@ hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* nam
     }
     GLOG(("=C= header_get: returning %d values\n", count));
     EXTEND(SP, count);
-    for (; s != 0; s = s->nxt) {
-      if (!s->str) {
-        continue;
-      }
-
+    for (SNode* n = s->head; n != 0; n = n->nxt) {
       /* TODO: This can probably be optimised A LOT*/
-      GLOG(("=C= header_get: returning [%s]\n", s->str));
-      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+      GLOG(("=C= header_get: returning [%s]\n", n->str));
+      PUSHs(sv_2mortal(newSVpv(n->str, 0)));
     }
 
 
 void
-hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, const char* name, SV* val)
+hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, int want_answer, const char* name, SV* val)
 
   PREINIT:
     HList* h = 0;
@@ -106,9 +102,11 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
       }
 
       if (keep_previous) {
-        /* Make a deep copy of the current value */
-        GLOG(("=C= header_set: making a deep copy\n"));
-        t = slist_clone(s);
+        if (want_answer) {
+          /* Make a deep copy of the current value */
+          GLOG(("=C= header_set: making a deep copy\n"));
+          t = slist_clone(s);
+        }
       } else {
         /* Make a shallow copy of the current value */
         GLOG(("=C= header_set: making a shallow copy\n"));
@@ -160,21 +158,18 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
     /* We now can put in the return stack all the original values */
     count = t ? slist_size(t) : 0;
     GLOG(("=C= header_set: returning %d values\n", count));
-    EXTEND(SP, count);
-    for (s = t; s != 0; s = s->nxt) {
-      if (!s->str) {
-        continue;
+    if (t) {
+      EXTEND(SP, count);
+      for (SNode* n = t->head; n != 0; n = n->nxt) {
+        /* TODO: This can probably be optimised A LOT*/
+        GLOG(("=C= header_set: returning [%s]\n", n->str));
+        PUSHs(sv_2mortal(newSVpv(n->str, 0)));
       }
 
-      /* TODO: This can probably be optimised A LOT*/
-      GLOG(("=C= header_set: returning [%s]\n", s->str));
-      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+      GLOG(("=C= header_set: now erasing the %d values for %p\n", count, t));
+      slist_unref(t);
+      GLOG(("=C= header_set: finished erasing the %d values\n", count));
     }
-
-    GLOG(("=C= header_set: now erasing the %d values for %p\n", count, t));
-    slist_unref(t);
-    GLOG(("=C= header_set: finished erasing the %d values\n", count));
-
 
 void
 hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* name)
@@ -207,20 +202,18 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
     /* We now can put in the return stack all the original values */
     count = t ? slist_size(t) : 0;
     GLOG(("=C= header_remove: returning %d values\n", count));
-    EXTEND(SP, count);
-    for (s = t; s != 0; s = s->nxt) {
-      if (!s->str) {
-        continue;
+    if (t) {
+      EXTEND(SP, count);
+      for (SNode* n = t->head; n != 0; n = n->nxt) {
+        /* TODO: This can probably be optimised A LOT*/
+        GLOG(("=C= header_remove: returning [%s]\n", n->str));
+        PUSHs(sv_2mortal(newSVpv(n->str, 0)));
       }
 
-      /* TODO: This can probably be optimised A LOT*/
-      GLOG(("=C= header_remove: returning [%s]\n", s->str));
-      PUSHs(sv_2mortal(newSVpv(s->str, 0)));
+      GLOG(("=C= header_remove: now erasing the %d values for %p\n", count, t));
+      slist_unref(t);
+      GLOG(("=C= header_remove: finished erasing the %d values\n", count));
     }
-
-    GLOG(("=C= header_remove: now erasing the %d values for %p\n", count, t));
-    slist_unref(t);
-    GLOG(("=C= header_remove: finished erasing the %d values\n", count));
 
 
 void
@@ -256,6 +249,8 @@ hhf_hlist_clone(unsigned long nh)
 
   CODE:
     h = (HList*) nh;
+    GLOG(("=C= CLONE(%p)\n", h));
+
     t = hlist_clone(h);
     GLOG(("=C= CLONE(%p) => %p\n", h, t));
 

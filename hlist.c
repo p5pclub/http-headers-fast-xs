@@ -5,37 +5,57 @@
 #include "gmem.h"
 #include "hlist.h"
 
-static SList* slist_alloc(SList* s) {
-  SList* n = 0;
-  GMEM_NEW(n, SList*, sizeof(SList));
-  if (n == 0) {
+static SNode* snode_alloc(const char* str) {
+  SNode* x = 0;
+  GMEM_NEW(x, SNode*, sizeof(SNode));
+  if (x == 0) {
     return 0;
   }
 
-  // The head node is always empty, to signal an empty list.
-  n->nxt = 0;
-  n->str = 0;
-  n->refcnt = 0;
+  x->str = 0;
+  x->nxt = 0;
 
-  if (s) {
-    if (s->str) {
-      int l = strlen(s->str) + 1;
-      GMEM_NEW(n->str, char*, l);
-      memcpy(n->str, s->str, l);
-    }
-    n->refcnt = s->refcnt;
+  if (str) {
+    int l = strlen(str) + 1;
+    GMEM_NEW(x->str, char*, l);
+    memcpy(x->str, str, l);
   }
 
-  return n;
+  return x;
+}
+
+static void snode_dealloc(SNode* snode) {
+  if (snode == 0) {
+    return;
+  }
+
+  // GLOG(("@@@ SNODE deleting [%s]\n", snode->str));
+  GMEM_DEL(snode->str, char*, -1);
+  GMEM_DEL(snode, SNode*, sizeof(SNode));
+}
+
+static SList* slist_alloc(SList* s) {
+  SList* x = 0;
+  GMEM_NEW(x, SList*, sizeof(SList));
+  if (x == 0) {
+    return 0;
+  }
+
+  x->head = 0;
+  x->tail = 0;
+  x->size = 0;
+  x->refcnt = 0;
+
+  if (s) {
+  }
+
+  return x;
 }
 
 static void slist_dealloc(SList* slist) {
   if (slist == 0) {
     return;
   }
-
-  GLOG(("@@@ SLIST deleting [%s]\n", slist->str ? slist->str : "*NULL*"));
-  GMEM_DEL(slist->str, char*, -1);
   GMEM_DEL(slist, SList*, sizeof(SList));
 }
 
@@ -57,33 +77,40 @@ SList* slist_unref(SList* slist) {
   }
 
   if (--slist->refcnt > 0) {
-    GLOG(("@@@ WOW SLIST has refcnt %d for [%s]\n", slist->refcnt, slist->str ? slist->str : "*NULL*"));
+    GLOG(("@@@ WOW SLIST %p has refcnt %d\n", slist, slist->refcnt));
     return slist;
   }
 
-  while (slist != 0) {
-    SList* q = slist;
-    slist = slist->nxt;
-    slist_dealloc(q);
+  for (SNode* n = slist->head; n != 0; ) {
+    SNode* x = n;
+    n = n->nxt;
+    snode_dealloc(x);
   }
+
+  slist_dealloc(slist);
 
   return 0;
 }
 
 SList* slist_clone(SList* slist) {
-  SList* h = 0;
-  SList* q = 0;
-  for (SList* p = slist; p != 0; p = p->nxt) {
-    SList* n = slist_alloc(p);
-    if (q != 0) {
-      q->nxt = n;
-    }
-    q = n;
-    if (h == 0) {
-      h = n;
+  SList* x = slist_alloc(slist);
+  ++x->refcnt;
+
+  if (slist != 0) {
+    for (SNode* n = slist->head; n != 0; n = n->nxt) {
+      SNode* y = snode_alloc(n->str);
+      if (x->head == 0) {
+        x->head = y;
+      }
+      if (x->tail) {
+        x->tail->nxt = y;
+      }
+      x->tail = y;
+      ++x->size;
     }
   }
-  return h;
+
+  return x;
 }
 
 SList* slist_create(void) {
@@ -91,18 +118,11 @@ SList* slist_create(void) {
 }
 
 int slist_empty(const SList* slist) {
-  return (slist == 0 || slist->nxt == 0);
+  return (slist == 0 || slist->size == 0);
 }
 
 int slist_size(const SList* slist) {
-  int size = 0;
-  for (const SList* s = slist; s != 0; s = s->nxt) {
-    if (!s->str) {
-      continue;
-    }
-    ++size;
-  }
-  return size;
+  return slist == 0 ? 0 : slist->size;
 }
 
 void slist_add(SList* slist, const char* str)
@@ -111,30 +131,23 @@ void slist_add(SList* slist, const char* str)
     return;
   }
 
-  SList* q = 0;
-  for (SList* s = slist; s != 0; s = s->nxt) {
-    q = s;
+  SNode* n = snode_alloc(str);
+  if (slist->head == 0) {
+    slist->head = n;
   }
-  if (!q) {
-    return;
+  if (slist->tail) {
+    slist->tail->nxt = n;
   }
-
-  int l = strlen(str) + 1;
-  SList* s = slist_ref(0);
-  GMEM_NEW(s->str, char*, l);
-  memcpy(s->str, str, l);
-  q->nxt = s;
+  slist->tail = n;
+  ++slist->size;
 }
 
 char* slist_format(const SList* slist, char separator, char* buffer, int length)
 {
   int total = 0;
-  for (const SList* s = slist; s != 0; s = s->nxt) {
-    if (!s->str) {
-      continue;
-    }
+  for (const SNode* n = slist->head; n != 0; n = n->nxt) {
     ++total;
-    total += strlen(s->str);
+    total += strlen(n->str);
   }
 
   if (!buffer || !length) {
@@ -146,15 +159,12 @@ char* slist_format(const SList* slist, char separator, char* buffer, int length)
   }
 
   int current = 0;
-  for (const SList* s = slist; s != 0; s = s->nxt) {
-    if (!s->str) {
-      continue;
-    }
+  for (const SNode* n = slist->head; n != 0; n = n->nxt) {
     if (current > 0) {
       buffer[current++] = separator;
     }
-    int l = strlen(s->str);
-    memcpy(buffer + current, s->str, l);
+    int l = strlen(n->str);
+    memcpy(buffer + current, n->str, l);
     current += l;
   }
   buffer[current] = '\0';
@@ -190,7 +200,6 @@ static HList* hlist_alloc(HList* h)
     }
     n->canonical_offset = h->canonical_offset;
     n->slist = slist_clone(h->slist);
-    n->refcnt = h->refcnt;
   }
 
   return n;
@@ -254,17 +263,24 @@ HList* hlist_create(void)
 
 HList* hlist_clone(HList* hlist)
 {
+  if (!hlist) {
+    return 0;
+  }
+
   HList* h = 0;
   HList* q = 0;
   for (HList* p = hlist; p != 0; p = p->nxt) {
     HList* n = hlist_alloc(p);
+    if (h == 0) {
+      h = n;
+    }
     if (q != 0) {
       q->nxt = n;
     }
     q = n;
-    if (h == 0) {
-      h = n;
-    }
+  }
+  if (h) {
+    ++h->refcnt;
   }
   return h;
 }
@@ -292,11 +308,8 @@ void hlist_dump(HList* hlist, FILE* fp)
     fprintf(fp, "> Name: %s (%s)\n",
             h->canonical_name + h->canonical_offset, h->name);
     int count = 0;
-    for (const SList* s = h->slist; s != 0; s = s->nxt) {
-      if (!s->str) {
-        continue;
-      }
-      fprintf(fp, ">  %3d: [%s]\n", ++count, s->str);
+    for (const SNode* n = h->slist->head; n != 0; n = n->nxt) {
+      fprintf(fp, ">  %3d: [%s]\n", ++count, n->str);
     }
     char* t = slist_format(h->slist, ':', 0, 0);
     fprintf(fp, "> Format: [%s]\n", t);

@@ -188,7 +188,6 @@ sub DESTROY {
 sub isa {
     my ($self, $klass) = @_;
     my $proto = ref $self || $self;
-    printf("proto [%s], klass [%s]\n", $proto, $klass);
     return ($proto eq $klass || $klass eq 'HTTP::Headers') ? 1 : 0;
 }
 
@@ -204,7 +203,7 @@ sub header {
     } elsif( @_ == 2 ) {
         @old = hhf_hlist_header_set($self->{hlist},
                                     $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                    0, 0, @_);
+                                    0, 0, 1, @_);
     } else {
         my %seen;
         while (@_) {
@@ -212,11 +211,11 @@ sub header {
             if ( $seen{ lc $field }++ ) {
                 @old = hhf_hlist_header_set($self->{hlist},
                                             $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                            0, 1, $field, shift);
+                                            0, 1, 1, $field, shift);
             } else {
                 @old = hhf_hlist_header_set($self->{hlist},
                                             $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                            0, 0, $field, shift);
+                                            0, 0, 1, $field, shift);
             }
         }
     }
@@ -238,12 +237,12 @@ sub push_header {
         my ($field, $val) = @_;
         hhf_hlist_header_set($self->{hlist},
                              $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                             0, 1, $field, $val);
+                             0, 1, 0, $field, $val);
     } else {
         while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
             hhf_hlist_header_set($self->{hlist},
                                  $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                 0, 1, $field, $val);
+                                 0, 1, 0, $field, $val);
         }
     }
     return ();
@@ -254,7 +253,7 @@ sub init_header {
     my ($self, $field, $val) = @_;
     hhf_hlist_header_set($self->{hlist},
                          $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                         1, 0, $field, $val);
+                         1, 0, 1, $field, $val);
 }
 
 sub remove_header {
@@ -366,7 +365,7 @@ sub _header {
             }
             hhf_hlist_header_set($self->{hlist},
                                  $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                 0, 0, $field, \@new);
+                                 0, 0, 0, $field, \@new);
         }
         elsif ( $op != $OP_PUSH ) {
             hhf_hlist_header_remove($self->{hlist},
@@ -424,7 +423,6 @@ sub _process_newline {
 sub _as_string {
     my ($self, $endl, $fieldnames) = @_;
 
-    printf("*** _as_string: [%s] ***\n", join(',', @$fieldnames));
     my @result;
     for my $key ( @$fieldnames ) {
         next if index($key, '_') == 0;
@@ -472,7 +470,7 @@ sub _date_header {
     if ( defined $time ) {
         ($old) = hhf_hlist_header_set($self->{hlist},
                                       $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                      0, 0, $header, HTTP::Date::time2str($time) );
+                                      0, 0, 1, $header, HTTP::Date::time2str($time) );
     } else {
         ($old) = hhf_hlist_header_get($self->{hlist},
                                       $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
@@ -506,7 +504,7 @@ sub content_type {
                                     'content-type');
     hhf_hlist_header_set($self->{hlist},
                          $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                         0, 0, 'content-type', shift) if @_;
+                         0, 0, 0, 'content-type', shift) if @_;
     $ct = $ct->[0] if ref($ct) eq 'ARRAY';
     return '' unless defined($ct) && length($ct);
     my @ct = split( /;\s*/, $ct, 2 );

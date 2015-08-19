@@ -4,9 +4,18 @@
 /*
  * A linked list of string values.
  */
-typedef struct SList {
+
+/*
+ * A linked list of string values.
+ */
+typedef struct SNode {
   char* str;
-  struct SList* nxt;
+  struct SNode* nxt;
+} SNode;
+typedef struct SList {
+  struct SNode* head;
+  struct SNode* tail;
+  int size;
   int refcnt;
 } SList;
 
