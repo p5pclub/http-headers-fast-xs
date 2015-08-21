@@ -260,6 +260,40 @@ void slist_add_obj(SList* slist, void* obj)
 }
 
 
+void siter_reset(SIter* siter, const SList* slist) {
+  siter->slist = slist;
+  siter->current = siter->slist->head;
+  siter->used = 0;
+}
+
+int siter_more(const SIter* siter) {
+  if (!siter->current) {
+    return 0;
+  }
+  if (siter->current != siter->slist->tail) {
+    return 1;
+  }
+
+  return !siter->used;
+}
+
+SNode* siter_fetch(SIter* siter) {
+  siter->used = 1;
+  return siter->current;
+}
+
+void siter_next(SIter* siter) {
+  if (!siter->current) {
+    return;
+  }
+  if (siter->current != siter->slist->tail) {
+    siter->current = siter->current->nxt;
+  } else {
+    siter->current = siter->used ? 0 : siter->current->nxt;
+  }
+  siter->used = 0;
+}
+
 
 static HNode* hnode_alloc(const char* name,
                           const char* canonical_name,
@@ -644,4 +678,39 @@ void hlist_del_header(HList* hlist, int translate_underscore,
   hnode_dealloc(h);
   --hlist->size;
   GLOG(("=C= del_header deleted [%s]", name));
+}
+
+
+void hiter_reset(HIter* hiter, const HList* hlist) {
+  hiter->hlist = hlist;
+  hiter->current = hiter->hlist->head;
+  hiter->used = 0;
+}
+
+int hiter_more(const HIter* hiter) {
+  if (!hiter->current) {
+    return 0;
+  }
+  if (hiter->current != hiter->hlist->tail) {
+    return 1;
+  }
+
+  return !hiter->used;
+}
+
+HNode* hiter_fetch(HIter* hiter) {
+  hiter->used = 1;
+  return hiter->current;
+}
+
+void hiter_next(HIter* hiter) {
+  if (!hiter->current) {
+    return;
+  }
+  if (hiter->current != hiter->hlist->tail) {
+    hiter->current = hiter->current->nxt;
+  } else {
+    hiter->current = hiter->used ? 0 : hiter->current->nxt;
+  }
+  hiter->used = 0;
 }

@@ -21,21 +21,18 @@ static int return_hlist(pTHX_   HList* list, const char* func) {
 
   GLOG(("=X= %s: returning %d values", func, count));
   EXTEND(SP, count);
-  const HNode* node = list->head;
+
   int num = 0;
-  while (node) {
+  HIter hiter;
+  for (hiter_reset(&hiter, list);
+       hiter_more(&hiter);
+       hiter_next(&hiter)) {
+    HNode* node = hiter_fetch(&hiter);
     ++num;
-    int last = node == list->tail;
 
     /* TODO: This can probably be optimised A LOT*/
     GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->canonical_name));
     PUSHs(sv_2mortal(newSVpv(node->canonical_name, 0)));
-
-    if (last) {
-      node = 0;
-      break;
-    }
-    node = node->nxt;
   }
 
   PUTBACK;
@@ -57,11 +54,14 @@ static int return_slist(pTHX_   SList* list, const char* func) {
 
   GLOG(("=X= %s: returning %d values", func, count));
   EXTEND(SP, count);
-  const SNode* node = list->head;
+
   int num = 0;
-  while (node) {
+  SIter siter;
+  for (siter_reset(&siter, list);
+       siter_more(&siter);
+       siter_next(&siter)) {
+    SNode* node = siter_fetch(&siter);
     ++num;
-    int last = node == list->tail;
 
     /* TODO: This can probably be optimised A LOT*/
     switch (node->type) {
@@ -76,12 +76,6 @@ static int return_slist(pTHX_   SList* list, const char* func) {
       PUSHs(sv_2mortal(newSVpv("gonzo", 0)));
       break;
     }
-
-    if (last) {
-      node = 0;
-      break;
-    }
-    node = node->nxt;
   }
 
   PUTBACK;
@@ -121,7 +115,7 @@ hhf_hlist_destroy(unsigned long nh)
 
   CODE:
     h = (HList*) nh;
-    GLOG(("=X= HLIST_DESTROY(%p)", h));
+    GLOG(("=X= HLIST_DESTROY(%p|%d)", h, hlist_size(h)));
     hlist_destroy(h);
 
 
@@ -138,7 +132,7 @@ hhf_hlist_clone(unsigned long nh)
   CODE:
     h = (HList*) nh;
     t = hlist_clone(h);
-    GLOG(("=X= HLIST_CLONE(%p) => %p", h, t));
+    GLOG(("=X= HLIST_CLONE(%p|%d) => %p", h, hlist_size(h), t));
     RETVAL = t;
 
   OUTPUT: RETVAL
@@ -154,7 +148,7 @@ hhf_hlist_clear(unsigned long nh)
     HList* h = 0;
 
   CODE:
-    GLOG(("=X= HLIST_CLEAR(%p)", h));
+    GLOG(("=X= HLIST_CLEAR(%p|%d)", h, hlist_size(h)));
     h = (HList*) nh;
     hlist_clear(h);
 
@@ -170,7 +164,7 @@ hhf_hlist_header_names(unsigned long nh)
 
   PPCODE:
     h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_NAMES(%p)", h));
+    GLOG(("=X= HLIST_HEADER_NAMES(%p|%d)", h, hlist_size(h)));
 
     PUTBACK;
     return_hlist(aTHX_   h, "header_names");
@@ -189,8 +183,8 @@ hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* nam
 
   PPCODE:
     h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_GET(%p, %d, %s)",
-          h, translate_underscore, name));
+    GLOG(("=X= HLIST_HEADER_GET(%p|%d, %d, %s)",
+          h, hlist_size(h), translate_underscore, name));
 
     s = hlist_get_header(h, translate_underscore,
                          name);
@@ -219,8 +213,8 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
 
   PPCODE:
     h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_SET(%p, %d, %d, %d, %s, %p)",
-          h, translate_underscore, new_only, keep_previous, name, val));
+    GLOG(("=X= HLIST_HEADER_SET(%p|%d, %d, %d, %d, %s, %p)",
+          h, hlist_size(h), translate_underscore, new_only, keep_previous, name, val));
 
     /* We look for the current values for the header and keep a reference to them */
     s = hlist_get_header(h, translate_underscore,
@@ -323,8 +317,8 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
 
   PPCODE:
     h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_REMOVE(%p, %d, %s)",
-          h, translate_underscore, name));
+    GLOG(("=X= HLIST_HEADER_REMOVE(%p|%d, %d, %s)",
+          h, hlist_size(h), translate_underscore, name));
 
     /* We look for the current values for the header and keep a reference to them */
     s = hlist_get_header(h, translate_underscore,

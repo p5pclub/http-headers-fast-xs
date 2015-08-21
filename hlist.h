@@ -38,6 +38,16 @@ typedef struct SList {
   int size;
 } SList;
 
+/*
+ * An iterator for SLists.
+ */
+typedef struct SIter {
+  const SList* slist;
+  SNode* current;
+  int used;
+} SIter;
+
+
 // Create a new, empty SList.
 SList* slist_create(void);
 
@@ -66,11 +76,12 @@ void slist_add_str(SList* slist, const char* str);
 // Add a obj element to this SList.
 void slist_add_obj(SList* slist, void* obj);
 
-#if 0
-// Get a buffer with all elements in the list, separated with character sep.
-// If buffer or length are zero, allocate just the space necessary for this.
-char* slist_format(const SList* slist, char spearator, char* buffer, int length);
-#endif
+
+// SList iterator functions.
+void siter_reset(SIter* siter, const SList* slist);
+int siter_more(const SIter* siter);
+SNode* siter_fetch(SIter* siter);
+void siter_next(SIter* siter);
 
 
 /*
@@ -98,7 +109,14 @@ typedef struct HList {
   int size;
 } HList;
 
-
+/*
+ * An iterator for HLists.
+ */
+typedef struct HIter {
+  const HList* hlist;
+  HNode* current;
+  int used;
+} HIter;
 
 
 // Create a new, empty HList.
@@ -135,5 +153,12 @@ SList* hlist_add_header(HList* hlist, int translate_underscore,
 // Delete a given header from an HList, if that header is there.
 void hlist_del_header(HList* hlist, int translate_underscore,
                       const char* name);
+
+
+// HList iterator functions.
+void hiter_reset(HIter* hiter, const HList* hlist);
+int hiter_more(const HIter* hiter);
+HNode* hiter_fetch(HIter* hiter);
+void hiter_next(HIter* hiter);
 
 #endif
