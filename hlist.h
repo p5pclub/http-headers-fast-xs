@@ -1,15 +1,32 @@
 #ifndef HLIST_H_
 #define HLIST_H_
 
+#define SNODE_TYPE_NONE 0
+#define SNODE_TYPE_STR  1
+#define SNODE_TYPE_OBJ  2
+#define SNODE_TYPE_SIZE 3
+
 /*
  * A linked list node, reference counted, holding:
  *
  * + a dynamically allocated string
  */
+typedef struct DataStr {
+  char* str;  // Allocated string
+  short alen; // Allocated length
+  short ulen; // Used length
+} DataStr;
+typedef struct DataObj {
+  void* obj;
+} DataObj;
 typedef struct SNode {
-  char* str;
+  union {
+    DataStr str;
+    DataObj obj;
+  } data;
   struct SNode* nxt;
-  int refcnt;
+  short refcnt;
+  short type;
 } SNode;
 
 /*
@@ -43,8 +60,11 @@ int slist_size(const SList* slist);
 // Dump an SList to a FILE stream.
 void slist_dump(SList* slist, FILE* fp);
 
-// Add a string element to this SList.  Accept duplicates.
-void slist_add(SList* slist, const char* str);
+// Add a str element to this SList.
+void slist_add_str(SList* slist, const char* str);
+
+// Add a obj element to this SList.
+void slist_add_obj(SList* slist, void* obj);
 
 #if 0
 // Get a buffer with all elements in the list, separated with character sep.
@@ -110,7 +130,7 @@ SList* hlist_get_header(HList* hlist, int translate_underscore,
 // Add a value to the SList for a given header name.
 // If header name already exists, append to its values; if not, create it.
 SList* hlist_add_header(HList* hlist, int translate_underscore,
-                        const char* name, const char* value);
+                        const char* name, const char* str, void* obj);
 
 // Delete a given header from an HList, if that header is there.
 void hlist_del_header(HList* hlist, int translate_underscore,

@@ -59,6 +59,10 @@ our @EXPORT  = qw{
     *HTTP::Headers::Fast::XS::content_type;
 *HTTP::Headers::Fast::content_type_charset =
     *HTTP::Headers::Fast::XS::content_type_charset;
+*HTTP::Headers::Fast::referer =
+    *HTTP::Headers::Fast::XS::referer;
+*HTTP::Headers::Fast::referrer =
+    *HTTP::Headers::Fast::XS::referrer;
 
 # for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
 #     no strict 'refs';
@@ -649,25 +653,25 @@ sub _split_header_words
 #     return;
 # }
 
-# sub referer {
-#     my $self = shift;
-#     if ( @_ && $_[0] =~ /#/ ) {
-#
-#         # Strip fragment per RFC 2616, section 14.36.
-#         my $uri = shift;
-#         if ( ref($uri) ) {
-#             require URI;
-#             $uri = $uri->clone;
-#             $uri->fragment(undef);
-#         }
-#         else {
-#             $uri =~ s/\#.*//;
-#         }
-#         unshift @_, $uri;
-#     }
-#     ( $self->_header( 'Referer', @_ ) )[0];
-# }
-# *referrer = \&referer;    # on tchrist's request
+sub referer {
+    my $self = shift;
+    if ( @_ && $_[0] =~ /#/ ) {
+
+        # Strip fragment per RFC 2616, section 14.36.
+        my $uri = shift;
+        if ( ref($uri) ) {
+            require URI;
+            $uri = $uri->clone;
+            $uri->fragment(undef);
+        }
+        else {
+            $uri =~ s/\#.*//;
+        }
+        unshift @_, $uri;
+    }
+    ( $self->_header( 'Referer', @_ ) )[0];
+}
+*referrer = \&referer;    # on tchrist's request
 
 ### for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
 ###     no strict 'refs';

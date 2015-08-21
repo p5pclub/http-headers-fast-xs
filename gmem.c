@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include "gmem.h"
 
+int gmem_unused = 0;
+
 #ifdef GMEM_CHECK
 
 long gmem_new = 0;
@@ -42,67 +44,71 @@ static void gmem_fini(void) {
   gmem_inited = 0;
 }
 
-void gmem_new_called(const char* file, int line, void* var, long size) {
+int gmem_new_called(const char* file, int line, void* var, long size) {
   gmem_init();
 
   if (!var) {
-    return;
+    return 0;
   }
 
   if (size <= 0) {
-    return;
+    return 0;
   }
 
 #if GMEM_CHECK >= 2
   fprintf(stderr, "=== MEM NEW %ld %p %s %d ===\n", size, var, file, line);
 #endif
   gmem_new += size;
+  return size;
 }
 
-void gmem_del_called(const char* file, int line, void* var, long size) {
+int gmem_del_called(const char* file, int line, void* var, long size) {
   gmem_init();
 
   if (!var) {
-    return;
+    return 0;
   }
 
   if (size < 0 && var) {
     size = strlen((char*) var) + 1;
   }
   if (size <= 0) {
-    return;
+    return 0;
   }
 
 #if GMEM_CHECK >= 2
   fprintf(stderr, "=== MEM DEL %ld %p %s %d ===\n", size, var, file, line);
 #endif
   gmem_del += size;
+  return size;
 }
 
-#endif // #ifdef GMEM_CHECK
-
-void gmem_strnew(char** tgt, const char* src, int len) {
+int gmem_strnew(char** tgt, const char* src, int len) {
   if (!tgt) {
-    return;
+    return 0;
   }
   *tgt = 0;
   if (!src) {
-    return;
+    return 0;
   }
   if (len <= 0) {
     len = strlen(src) + 1;
   }
   GMEM_NEW(*tgt, char*, len);
   memcpy(*tgt, src, len);
+  return len;
 }
 
-void gmem_strdel(char** str, int len) {
+int gmem_strdel(char** str, int len) {
   if (!str || !*str) {
-    return;
+    return 0;
   }
   if (len <= 0) {
     len = strlen(*str) + 1;
   }
   GMEM_DEL(*str, char*, len);
   *str = 0;
+  return len;
 }
+
+#endif // #ifdef GMEM_CHECK
