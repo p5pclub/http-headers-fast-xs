@@ -4,10 +4,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+// These are always available.
+#define GMEM_STRNEW(tgt, src, len) \
+  do { \
+    gmem_strnew(&tgt, src, len); \
+  } while (0)
+#define GMEM_STRDEL(str, len) \
+  do { \
+    gmem_strdel(&str, len); \
+  } while (0)
+
 #ifndef GMEM_CHECK
 
-#define GMEM_NEW(var, type, size) do { var = (type) malloc(size); } while (0)
-#define GMEM_DEL(var, type, size) do { free(var); var = 0; } while (0)
+#define GMEM_NEW(var, type, size)  do { var = (type) malloc(size); } while (0)
+#define GMEM_DEL(var, type, size)  do { free(var); var = 0; } while (0)
 
 #else
 
@@ -26,9 +36,12 @@
 extern long gmem_new;
 extern long gmem_del;
 
-#endif
-
 void gmem_new_called(const char* file, int line, void* var, long size);
 void gmem_del_called(const char* file, int line, void* var, long size);
+
+#endif // #ifndef GMEM_CHECK
+
+void gmem_strnew(char** tgt, const char* src, int len);
+void gmem_strdel(char** str, int len);
 
 #endif

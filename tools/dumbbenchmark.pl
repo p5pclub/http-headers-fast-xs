@@ -25,31 +25,31 @@ my %cases = (
     _standardize_field_name => {
         fast => sub {
             HTTP::Headers::Fast::_standardize_field_name('Foo-Bar')
-                for 1 .. 1e5
+                for 1 .. 1e6
         },
     },
 
     push_header => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->push_header('X-Foo' => 1) for 1 .. 1e4;
+            $h->push_header('X-Foo' => 1) for 1 .. 1e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->push_header('X-Foo' => 1) for 1 .. 1e4;
+            $f->push_header('X-Foo' => 1) for 1 .. 1e5;
         },
     },
 
     push_header_many => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e4;
+            $h->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e4;
+            $f->push_header('X-Foo' => 1, 'X-Bar' => 2) for 1 .. 3e5;
         },
     },
 
@@ -57,103 +57,103 @@ my %cases = (
         orig => sub {
             my $h = HTTP::Headers->new;
             $h->date(1226370757);
-            $h->date for 1 .. 3e4;
+            $h->date for 1 .. 3e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
             $f->date(1226370757);
-            $f->date for 1 .. 3e4;
+            $f->date for 1 .. 3e5;
         },
     },
 
     set_date => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->date(1226370757) for 1 .. 1e4;
+            $h->date(1226370757) for 1 .. 1e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->date(1226370757) for 1 .. 1e4;
+            $f->date(1226370757) for 1 .. 1e5;
         },
     },
 
     scan => {
         orig => sub {
             my $h = HTTP::Headers->new(%source);
-            $h->scan(sub { }) for 1 .. 1e4;
+            $h->scan(sub { }) for 1 .. 1e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new(%source);
-            $f->scan(sub { }) for 1 .. 1e4;
+            $f->scan(sub { }) for 1 .. 1e5;
         },
     },
 
     get_header => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->header('Content-Length') for 1 .. 1e5;
+            $h->header('Content-Length') for 1 .. 1e6;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->header('Content-Length') for 1 .. 1e5;
+            $f->header('Content-Length') for 1 .. 1e6;
         },
     },
 
     set_header => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->header('Content-Length' => 100) for 1 .. 1e4;
+            $h->header('Content-Length' => 100) for 1 .. 1e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->header('Content-Length' => 100) for 1 .. 1e4;
+            $f->header('Content-Length' => 100) for 1 .. 1e5;
         },
     },
 
     get_content_length => {
         orig => sub {
             my $h = HTTP::Headers->new;
-            $h->content_length for 1 .. 1e5;
+            $h->content_length for 1 .. 1e6;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new;
-            $f->content_length for 1 .. 1e5;
+            $f->content_length for 1 .. 1e6;
         },
     },
 
     as_string_without_sort => {
         orig => sub {
             my $h = HTTP::Headers->new(%source);
-            $h->as_string for 1 .. 1e4;
+            $h->as_string for 1 .. 1e5;
         },
 
         fast_as_str => sub {
             my $f = HTTP::Headers::Fast->new(%source);
-            $f->as_string for 1 .. 1e4;
+            $f->as_string for 1 .. 1e5;
         },
 
         # fast_as_str_wo
         fast_as_str_wo => sub {
             my $f = HTTP::Headers::Fast->new(%source);
-            $f->as_string_without_sort for 1 .. 1e4;
+            $f->as_string_without_sort for 1 .. 1e5;
         },
     },
 
     as_string => {
         orig => sub {
             my $h = HTTP::Headers->new(%source);
-            $h->as_string for 1 .. 1e4;
+            $h->as_string for 1 .. 1e5;
         },
 
         fast => sub {
             my $f = HTTP::Headers::Fast->new(%source);
-            $f->as_string for 1 .. 1e4;
+            $f->as_string for 1 .. 1e5;
         },
     },
 );

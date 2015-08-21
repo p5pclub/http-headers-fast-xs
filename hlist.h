@@ -2,32 +2,37 @@
 #define HLIST_H_
 
 /*
- * A linked list of string values.
- */
-
-/*
- * A linked list of string values.
+ * A linked list node, reference counted, holding:
+ *
+ * + a dynamically allocated string
  */
 typedef struct SNode {
   char* str;
   struct SNode* nxt;
+  int refcnt;
 } SNode;
+
+/*
+ * A placeholder for a linked list of SNode*.
+ */
 typedef struct SList {
   struct SNode* head;
   struct SNode* tail;
   int size;
-  int refcnt;
 } SList;
-
-// Manage reference-counted SList* elements.
-SList* slist_ref(SList* slist);
-SList* slist_unref(SList* slist);
 
 // Create a new, empty SList.
 SList* slist_create(void);
 
-// Create a deep clone of an SList.
+// Destroy an existing SList.
+void slist_destroy(SList* slist);
+
+// Create a clone of an SList.
 SList* slist_clone(SList* slist);
+
+// Erase all elements of an SList, leaving it as it was when just created.
+// Return 1 if the SList* could also be deleted.
+int slist_clear(SList* slist);
 
 // Is this SList empty?
 int slist_empty(const SList* slist);
@@ -35,44 +40,72 @@ int slist_empty(const SList* slist);
 // Get the size for this SList.
 int slist_size(const SList* slist);
 
+// Dump an SList to a FILE stream.
+void slist_dump(SList* slist, FILE* fp);
+
 // Add a string element to this SList.  Accept duplicates.
 void slist_add(SList* slist, const char* str);
 
+#if 0
 // Get a buffer with all elements in the list, separated with character sep.
 // If buffer or length are zero, allocate just the space necessary for this.
 char* slist_format(const SList* slist, char spearator, char* buffer, int length);
-
+#endif
 
 
 /*
- * A linked list of headers.  Each header has a name and an SList containing
- * all the values for that header.
+ * A linked list node, reference counted, holding:
+ *
+ * + a dynamically allocated string - name
+ * + a dynamically allocated string - canonical name
+ * + an integer length - canonical offset
+ * + a pointer to an SList holding values for this name
  */
-typedef struct HList {
+typedef struct HNode {
   char* name;
   char* canonical_name;
   int canonical_offset;
   SList* slist;
-  struct HList* nxt;
-  int refcnt;
+  struct HNode* nxt;
+} HNode;
+
+/*
+ * A placeholder for a linked list of HNode*.
+ */
+typedef struct HList {
+  struct HNode* head;
+  struct HNode* tail;
+  int size;
 } HList;
 
 
-// Manage reference-counted HList* elements.
-HList* hlist_ref(HList* hlist);
-HList* hlist_unref(HList* hlist);
+
 
 // Create a new, empty HList.
 HList* hlist_create(void);
 
-// Create a deep clone of an HList.
+// Destroy an existing HList.
+void hlist_destroy(HList* hlist);
+
+// Create a clone of an HList.
 HList* hlist_clone(HList* hlist);
 
-// Erase all elements of an HList; leave it as just created.
-void hlist_clear(HList* hlist);
+// Erase all elements of an HList, leaving it as it was when just created.
+// Return 1 if the HList* could also be deleted.
+int hlist_clear(HList* hlist);
+
+// Is this HList empty?
+int hlist_empty(const HList* hlist);
+
+// Get the size for this HList.
+int hlist_size(const HList* hlist);
 
 // Dump an HList to a FILE stream.
 void hlist_dump(HList* hlist, FILE* fp);
+
+// Get the SList with values for a given header name.
+SList* hlist_get_header(HList* hlist, int translate_underscore,
+                        const char* name);
 
 // Add a value to the SList for a given header name.
 // If header name already exists, append to its values; if not, create it.
@@ -82,9 +115,5 @@ SList* hlist_add_header(HList* hlist, int translate_underscore,
 // Delete a given header from an HList, if that header is there.
 void hlist_del_header(HList* hlist, int translate_underscore,
                       const char* name);
-
-// Get the SList with values for a given header name.
-SList* hlist_get_header(HList* hlist, int translate_underscore,
-                        const char* name);
 
 #endif
