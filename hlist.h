@@ -6,6 +6,9 @@
 #define SNODE_TYPE_OBJ  2
 #define SNODE_TYPE_SIZE 3
 
+#define SLIST_INITIAL_SIZE 16
+#define HLIST_INITIAL_SIZE 97 // 131
+
 /*
  * A linked list node, reference counted, holding:
  *
@@ -24,7 +27,6 @@ typedef struct SNode {
     DataStr str;
     DataObj obj;
   } data;
-  struct SNode* nxt;
   short refcnt;
   short type;
 } SNode;
@@ -33,9 +35,9 @@ typedef struct SNode {
  * A placeholder for a linked list of SNode*.
  */
 typedef struct SList {
-  struct SNode* head;
-  struct SNode* tail;
-  int size;
+  SNode** data;
+  int alen;
+  int ulen;
 } SList;
 
 /*
@@ -43,8 +45,7 @@ typedef struct SList {
  */
 typedef struct SIter {
   const SList* slist;
-  SNode* current;
-  int used;
+  int pos;
 } SIter;
 
 
@@ -104,9 +105,9 @@ typedef struct HNode {
  * A placeholder for a linked list of HNode*.
  */
 typedef struct HList {
-  struct HNode* head;
-  struct HNode* tail;
-  int size;
+  HNode* data[HLIST_INITIAL_SIZE];
+  int alen;
+  int ulen;
 } HList;
 
 /*
@@ -114,8 +115,8 @@ typedef struct HList {
  */
 typedef struct HIter {
   const HList* hlist;
-  HNode* current;
-  int used;
+  int pos;
+  HNode* node;
 } HIter;
 
 
