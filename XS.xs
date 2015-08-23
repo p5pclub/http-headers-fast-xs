@@ -93,7 +93,7 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     if ( h == NULL || !SvOK(*h) )
         /* If the field is not found, don't put anything on stack -> that will return () to perl */
         return false;
-    
+
     if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV ) {
         /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
         av_entry = (AV *) SvRV(*h);
@@ -149,6 +149,20 @@ void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     } else {
         av_push( (AV *) SvRV(*h), val );
     }
+}
+
+void set_header(pTHX_ SV *self, char *field, int len, SV *val) {
+    SV **val_0;
+
+    /* av_len == 0 here means that we have one item in av */
+    if ( SvROK(val) &&
+         SvTYPE( SvRV(val) ) == SVt_PVAV &&
+         av_len( (AV *)SvRV(val) ) == 0 )
+    {
+        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+        val = *val_0;
+    }
+    hv_store( (HV *)SvRV(self), field, len, newSVsv(val), 0 );
 }
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
@@ -225,7 +239,6 @@ _header_set(SV *self, SV *field_name, SV *val)
         char   *field;
         STRLEN len;
         bool   found;
-        SV     **a_value;
     PPCODE:
         field = SvPV(field_name, len);
 
@@ -242,14 +255,7 @@ _header_set(SV *self, SV *field_name, SV *val)
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            /* av_len == 0 here means that we have one item in av */
-            if ( SvROK(val) &&
-                 SvTYPE( SvRV(val) ) == SVt_PVAV &&
-                 av_len((AV *)SvRV(val)) == 0) {
-                a_value = av_fetch( (AV *)SvRV(val), 0, 0 );
-                val = *a_value;
-            }
-            hv_store( (HV *) SvRV(self), field, len, newSVsv(val), 0);
+            set_header(aTHX_ self, field, len, val);
         }
 
 void
