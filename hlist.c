@@ -502,7 +502,7 @@ static char* canonicalise(const char* name, int translate_underscore, int* lengt
   }
   canonical[j] = '\0';
 
-  for (int j = 0; exceptions[j].result != 0; ++j) {
+  for (j = 0; exceptions[j].result != 0; ++j) {
     if (strcmp(canonical, exceptions[j].result) == 0) {
       GLOG(("=C= exception: [%s] => [%s]", canonical, exceptions[j].change));
       strcpy(canonical, exceptions[j].change);

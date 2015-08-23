@@ -215,6 +215,7 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
     SList* s = 0;
     SList* t = 0;
     AV* arr = 0;
+    int j;
 
   PPCODE:
     h = (HList*) nh;
@@ -284,7 +285,7 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
           /* Add each element in val as a value for name. */
           count = av_len(arr) + 1;
           GLOG(("=X= header_set: array has %d elementds", count));
-          for (int j = 0; j < count; ++j) {
+          for (j = 0; j < count; ++j) {
             SV** svp = av_fetch(arr, j, 0);
             if (SvIOK(*svp) || SvNOK(*svp) || SvPOK(*svp)) {
               STRLEN slen;
