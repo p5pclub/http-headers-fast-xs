@@ -66,13 +66,13 @@ static int return_slist(pTHX_   SList* list, const char* func) {
     /* TODO: This can probably be optimised A LOT*/
     switch (node->type) {
     case SNODE_TYPE_STR:
-      GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->data.str.str));
-      PUSHs(sv_2mortal(newSVpv(node->data.str.str, node->data.str.alen - 1)));
+      GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->data.gstr.str));
+      PUSHs(sv_2mortal(newSVpv(node->data.gstr.str, node->data.gstr.ulen - 1)));
       break;
 
     case SNODE_TYPE_OBJ:
       GLOG(("=X= %s: %2d - returning data [%p]", func, num, node->data));
-      // TODO: PUSHs(sv_2mortal(newSVpv(node->data.str.str, 0)));
+      // TODO: PUSHs(sv_2mortal(newSVpv(node->data.gstr.str, 0)));
       PUSHs(sv_2mortal(newSVpv("gonzo", 0)));
       break;
     }
@@ -207,7 +207,6 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
   PREINIT:
     HList* h = 0;
     SList* s = 0;
-    SList* t = 0;
     AV* arr = 0;
     int j;
 
@@ -216,11 +215,10 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
     GLOG(("=X= HLIST_HEADER_SET(%p|%d, %d, %d, %d, %s, %p)",
           h, hlist_size(h), translate_underscore, new_only, keep_previous, name, val));
 
-    /* We look for the current values for the header and keep a reference to them */
+    /* We look for the current values for the header. */
     s = hlist_get_header(h, translate_underscore,
                          name);
     int count = slist_size(s);
-    GLOG(("=X= header_set: will later return %d values", count));
     if (count > 0) {
       if (new_only) {
         /* header should not have existed before */
@@ -228,17 +226,18 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
         XSRETURN_EMPTY;
       }
 
+      if (want_answer) {
+        /* Put current values as the return for the function. */
+        PUTBACK;
+        return_slist(aTHX_   s, "header_set");
+        SPAGAIN;
+      }
+
       if (keep_previous) {
-        if (want_answer) {
-          /* Make a deep copy of the current value */
-          GLOG(("=X= header_set: making a deep copy"));
-          /* GONZO: this is still EXPENSIVE! */
-          t = slist_clone(s);
-        }
       } else {
         /* Make a shallow copy of the current value */
-        GLOG(("=X= header_set: making a shallow copy"));
-        t = slist_clone(s);
+        /* GLOG(("=X= header_set: making a shallow copy")); */
+        /* t = slist_clone(s); */
 
         /* Erase what is already there for this header */
         hlist_del_header(h, translate_underscore,
@@ -295,15 +294,6 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
       }
     }
 
-    PUTBACK;
-    return_slist(aTHX_   t, "header_set");
-    SPAGAIN;
-
-    GLOG(("=X= header_set: now erasing the %d values for %p", count, t));
-    slist_destroy(t);
-    GLOG(("=X= header_set: finished erasing the %d values", count));
-
-
 #
 # Remove a given key (and all its values) in an existing HList.
 #
@@ -313,7 +303,6 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
   PREINIT:
     HList* h = 0;
     SList* s = 0;
-    SList* t = 0;
 
   PPCODE:
     h = (HList*) nh;
@@ -324,21 +313,15 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
     s = hlist_get_header(h, translate_underscore,
                          name);
     int count = slist_size(s);
-    GLOG(("=X= header_remove: will later return %d values", count));
     if (count) {
-        GLOG(("=X= header_remove: making a copy of current values"));
-        t = slist_clone(s);
 
-        /* Erase what is already there for this header */
-        hlist_del_header(h, translate_underscore,
-                         name);
-        GLOG(("=X= header_remove: deleted key [%s]", name));
+      PUTBACK;
+      return_slist(aTHX_   s, "header_remove");
+      SPAGAIN;
+
+      /* Erase what is already there for this header */
+      hlist_del_header(h, translate_underscore,
+                       name);
+      GLOG(("=X= header_remove: deleted key [%s]", name));
     }
 
-    PUTBACK;
-    return_slist(aTHX_   t, "header_remove");
-    SPAGAIN;
-
-    GLOG(("=X= header_remove: now erasing the %d values for %p", count, t));
-    slist_destroy(t);
-    GLOG(("=X= header_remove: finished erasing the %d values", count));

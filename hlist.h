@@ -1,6 +1,8 @@
 #ifndef HLIST_H_
 #define HLIST_H_
 
+#include "gstr.h"
+
 #define SNODE_TYPE_NONE 0
 #define SNODE_TYPE_STR  1
 #define SNODE_TYPE_OBJ  2
@@ -14,18 +16,13 @@
  *
  * + a dynamically allocated string
  */
-typedef struct DataStr {
-  char* str;  // Allocated string
-  short alen; // Allocated length
-  short ulen; // Used length
-} DataStr;
-typedef struct DataObj {
+typedef struct PObj {
   void* obj;
-} DataObj;
+} PObj;
 typedef struct SNode {
   union {
-    DataStr str;
-    DataObj obj;
+    GStr gstr;
+    PObj pobj;
   } data;
   short refcnt;
   short type;
@@ -35,7 +32,7 @@ typedef struct SNode {
  * A placeholder for a linked list of SNode*.
  */
 typedef struct SList {
-  SNode** data;
+  SNode* data;
   int alen;
   int ulen;
 } SList;

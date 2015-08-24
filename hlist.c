@@ -22,16 +22,14 @@ static SNode* snode_alloc(const char* str, void* obj) {
 
   if (str) {
     snode->type = SNODE_TYPE_STR;
-    GMEM_STRNEW(snode->data.str.str, str, -1, snode->data.str.alen);
-    snode->data.str.ulen = snode->data.str.alen;
-    GLOG(("=C= SNode allocating [%s]",
-          snode->data.str.str ? snode->data.str.str : "*NULL*"));
+    gstr_init(&snode->data.gstr, str, -1);
+    GLOG(("=C= SNode allocating str [%s]", snode->data.gstr.str));
   }
 
   if (obj) {
     snode->type = SNODE_TYPE_OBJ;
-    snode->data.obj.obj = obj;
-    GLOG(("=C= SNode allocating [%p]", snode->data.obj.obj));
+    snode->data.pobj.obj = obj;
+    GLOG(("=C= SNode allocating obj [%p]", snode->data.pobj.obj));
   }
 
   return snode;
@@ -44,13 +42,12 @@ static void snode_dealloc(SNode* snode) {
 
   switch (snode->type) {
   case SNODE_TYPE_STR:
-    GLOG(("=C= SNode deallocating str [%s]",
-          snode->data.str.str ? snode->data.str.str : "*NULL*"));
-    GMEM_DEL(snode->data.str.str, char*, snode->data.str.alen);
+    GLOG(("=C= SNode deallocating str [%s]", snode->data.gstr.str));
+    gstr_clear(&snode->data.gstr);
     break;
 
   case SNODE_TYPE_OBJ:
-    GLOG(("=C= SNode deallocating obj [%p]", snode->data.obj.obj));
+    GLOG(("=C= SNode deallocating obj [%p]", snode->data.pobj.obj));
     break;
   }
 
@@ -122,9 +119,16 @@ SList* slist_clone(SList* slist) {
   if (slist && slist->alen > 0) {
     p->alen = slist->alen;
     p->ulen = slist->ulen;
-    p->data = calloc(p->alen, sizeof(SNode*)); // TODO macro GMEM
-    for (int j = 0; j < p->ulen; ++j) {
-      p->data[j] = snode_ref(slist->data[j]);
+    p->data = (SNode*) calloc(p->alen, sizeof(SNode)); // TODO macro GMEM
+    for (int j = 0; j < p->alen; ++j) {
+      p->data[j].type = slist->data[j].type;
+      if (j < slist->ulen) {
+        gstr_init(&p->data[j].data.gstr,
+                  slist->data[j].data.gstr.str,
+                  slist->data[j].data.gstr.ulen);
+      } else {
+        gstr_init(&p->data[j].data.gstr, 0, 0);
+      }
     }
   }
 
@@ -136,8 +140,13 @@ int slist_clear(SList* slist) {
     return 0;
   }
 
+#if 0
   for (int j = 0; j < slist->ulen; ++j) {
     snode_unref(slist->data[j]);
+  }
+#endif
+  for (int j = 0; j < slist->ulen; ++j) {
+    gstr_clear(&slist->data[j].data.gstr);
   }
   free(slist->data);  // TODO macro GMEM
   return 1;
@@ -156,7 +165,7 @@ void slist_dump(SList* slist, FILE* fp)
   static char* ctype[SNODE_TYPE_SIZE] = {
     "NONE",
     "STR",
-    "DATA",
+    "OBJ",
   };
 
   if (!slist) {
@@ -165,16 +174,16 @@ void slist_dump(SList* slist, FILE* fp)
 
   fprintf(fp, "SList at 0x%p with %d elements:\n", slist, slist_size(slist));
   for (int j = 0; j < slist->ulen; ++j) {
-    SNode* s = slist->data[j];
+    SNode* s = &slist->data[j];
     fprintf(fp, ">  %3d [%2d|%s|%p]: ",
             j, s->refcnt, ctype[s->type], s);
     switch (s->type) {
     case SNODE_TYPE_STR:
-      fprintf(fp, "[%*s]", s->data.str.ulen, s->data.str.str);
+      fprintf(fp, "[%s]", s->data.gstr.str);
       break;
 
     case SNODE_TYPE_OBJ:
-      fprintf(fp, "[%p]", s->data.obj.obj);
+      fprintf(fp, "[%p]", s->data.pobj.obj);
       break;
     }
     fprintf(fp, "\n");
@@ -190,10 +199,24 @@ static void slist_grow(SList* slist) {
   int len = slist->alen ? 2*slist->alen : SLIST_INITIAL_SIZE;
   GLOG(("=C= growing SList %p from %d to %d", slist, slist->alen, len));
 
-  SNode** data = (SNode**) calloc(len, sizeof(SNode*)); // TODO macro GMEM
+  SNode* data = (SNode*) calloc(len, sizeof(SNode)); // TODO macro GMEM
   for (int j = 0; j < slist->alen; ++j) {
-    data[j] = slist->data[j];
+    data[j].type = slist->data[j].type;
+    gstr_init(&data[j].data.gstr, 0, 0);
+    if (j >= slist->ulen) {
+      continue;
+    }
+
+    data[j].data.gstr.ulen = slist->data[j].data.gstr.ulen;
+    if (slist->data[j].data.gstr.alen <= 0) {
+      memcpy(data[j].data.gstr.buf, slist->data[j].data.gstr.buf, slist->data[j].data.gstr.ulen);
+    } else {
+      data[j].data.gstr.str  = slist->data[j].data.gstr.str;
+      data[j].data.gstr.alen = slist->data[j].data.gstr.alen;
+    }
+    gstr_init(&slist->data[j].data.gstr, 0, 0);
   }
+  free(slist->data); // TODO macro GMEM
   slist->data = data;
   slist->alen = len;
 }
@@ -210,7 +233,9 @@ void slist_add_str(SList* slist, const char* str)
   slist_grow(slist);
 
   GLOG(("=C= creating SNode str for [%s]", str));
-  slist->data[slist->ulen++] = snode_ref(snode_alloc(str, 0));
+  gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
+  slist->data[slist->ulen].type = SNODE_TYPE_STR;
+  ++slist->ulen;
 }
 
 void slist_add_obj(SList* slist, void* obj)
@@ -225,7 +250,9 @@ void slist_add_obj(SList* slist, void* obj)
   slist_grow(slist);
 
   GLOG(("=C= creating SNode obj for [%p]", obj));
-  slist->data[slist->ulen++] = snode_ref(snode_alloc(0, obj));
+  // TODO gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
+  slist->data[slist->ulen].type = SNODE_TYPE_OBJ;
+  ++slist->ulen;
 }
 
 
@@ -239,7 +266,7 @@ int siter_more(const SIter* siter) {
 }
 
 SNode* siter_fetch(SIter* siter) {
-  return siter->slist->data[siter->pos];
+  return &siter->slist->data[siter->pos];
 }
 
 void siter_next(SIter* siter) {
