@@ -82,37 +82,52 @@ void handle_standard_case(pTHX_ char *field, int len) {
     *standard_case_val = newSVpv( orig, len );
 }
 
+SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
+    SV **h;
+
+    /* check if field has a value */
+    if ( !hv_exists(self, field, len) ) {
+        return NULL;
+    }
+
+    h = hv_fetch(self, field, len, 0);
+    if (h == NULL)
+        croak("hv_fetch() failed. This should not happen.");
+
+    return *h;
+}
+
 /* Returns if we store that field name or not */
 bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
-    SV   **h, **a_value;
-    AV   *av_entry;
+    AV   *val_array;
+    SV   *value, **val_array_elem;
     int  top_index, i;
 
-    h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
-    if ( h == NULL || !SvOK(*h) )
-        /* If the field is not found, don't put anything on stack -> that will return () to perl */
+    value = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
+
+    if (value == NULL)
         return false;
 
-    if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV ) {
-        /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
-        av_entry = (AV *) SvRV(*h);
-        top_index = av_len(av_entry);
+    if ( SvROK(value) && SvTYPE( SvRV(value) ) == SVt_PVAV ) {
+        /* If the value is an array, put all the values of the array on stack.
+         * This will return @$h to perl */
+        val_array = (AV *) SvRV(value);
+        top_index = av_len(val_array);
         EXTEND(SP, top_index);
 
         for (i = 0; i <= top_index; i++) {
-            a_value = av_fetch( av_entry, i, 0 );
+            val_array_elem = av_fetch(val_array, i, 0);
 
-            if ( !a_value ) {
+            if (val_array_elem == NULL)
                 croak("av_fetch() failed. This should not happen.");
-            }
 
-            PUSHs(sv_2mortal(newSVsv(*a_value)));
+            PUSHs(sv_2mortal(newSVsv(*val_array_elem)));
         }
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
         EXTEND(SP, 1);
-        PUSHs(sv_2mortal(newSVsv(*h)));
+        PUSHs(sv_2mortal(newSVsv(value)));
     }
 
     /* put the local SP in THX -> SP was EXTENDED */
