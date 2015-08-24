@@ -166,7 +166,7 @@ void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     }
 }
 
-void set_header(pTHX_ SV *self, char *field, int len, SV *val) {
+void set_header(pTHX_ HV *self, char *field, int len, SV *val) {
     SV **val_0;
 
     /* av_len == 0 here means that we have one item in av */
@@ -177,7 +177,7 @@ void set_header(pTHX_ SV *self, char *field, int len, SV *val) {
         val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
         val = *val_0;
     }
-    hv_store( (HV *)SvRV(self), field, len, newSVsv(val), 0 );
+    hv_store(self, field, len, newSVsv(val), 0);
 }
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
@@ -270,7 +270,7 @@ _header_set(SV *self, SV *field_name, SV *val)
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            set_header(aTHX_ self, field, len, val);
+            set_header(aTHX_ (HV *)SvRV(self), field, len, val);
         }
 
 void
