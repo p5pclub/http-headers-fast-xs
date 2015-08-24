@@ -149,6 +149,8 @@ int slist_clear(SList* slist) {
     gstr_clear(&slist->data[j].data.gstr);
   }
   free(slist->data);  // TODO macro GMEM
+  slist->data = 0;
+  slist->alen = slist->ulen = 0;
   return 1;
 }
 
@@ -232,9 +234,9 @@ void slist_add_str(SList* slist, const char* str)
 
   slist_grow(slist);
 
-  GLOG(("=C= creating SNode str for [%s]", str));
   gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
   slist->data[slist->ulen].type = SNODE_TYPE_STR;
+  GLOG(("=C= added str [%s] at pos %d", str, slist->ulen));
   ++slist->ulen;
 }
 
@@ -249,9 +251,9 @@ void slist_add_obj(SList* slist, void* obj)
 
   slist_grow(slist);
 
-  GLOG(("=C= creating SNode obj for [%p]", obj));
   // TODO gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
   slist->data[slist->ulen].type = SNODE_TYPE_OBJ;
+  GLOG(("=C= added obj [%p] at pos %d", obj, slist->ulen));
   ++slist->ulen;
 }
 
@@ -291,7 +293,8 @@ static HNode* hnode_alloc(const char* name,
   GMEM_STRNEW(hnode->name, name, -1, l);
   GMEM_STRNEW(hnode->canonical_name, canonical_name, -1, l);
 
-  GLOG(("=C= HNode allocating [%s/%s]",
+  GLOG(("=C= HNode allocating at %p [%s/%s]",
+        hnode,
         hnode->canonical_name ? hnode->canonical_name + hnode->canonical_offset : "*NULL*",
         hnode->name ? hnode->name : "*NULL*"));
   return hnode;
@@ -302,7 +305,8 @@ static void hnode_dealloc(HNode* hnode) {
     return;
   }
 
-  GLOG(("=C= Hnode deallocating [%s/%s]",
+  GLOG(("=C= Hnode deallocating at %p [%s/%s]",
+        hnode,
         hnode->canonical_name ? hnode->canonical_name + hnode->canonical_offset : "*NULL*",
         hnode->name ? hnode->name : "*NULL*"));
   GMEM_DEL(hnode->canonical_name, char*, -1);
@@ -534,7 +538,7 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
     *hprv = q;
   }
 
-  GLOG(("=C= lookup header [%s] -> %p", name, h));
+  GLOG(("=C= lookup header [%s] -> pos %d - %p", name, pos, h));
   if (h) {
     // If it already exists, we won't need this
     GMEM_DEL(canonical, char*, l);
@@ -548,6 +552,7 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
     h = hnode_alloc(0, 0, 0);
     h->slist = slist_clone(0);
 
+    ++hlist->ulen;
     if (q == 0) {
       hlist->data[pos] = h;
     } else {
@@ -563,24 +568,27 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
   return h;
 }
 
-SList* hlist_get_header(HList* hlist, int translate_underscore,
-                        const char* name)
+HNode* hlist_get_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name)
 {
-  HNode* h = hlist_lookup(hlist, translate_underscore,
-                          name, 0, 0, 0);
-
-  if (!h) {
-    GLOG(("=C= get_header found nothing for [%s] -- OK", name));
-    return 0;
+  if (h) {
+    GLOG(("=C= get_header using [%s] at %p", name, h));
+  } else {
+    h = hlist_lookup(hlist, translate_underscore,
+                     name, 0, 0, 0);
+    if (h) {
+      GLOG(("=C= get_header found [%s] at %p", name, h->slist));
+    } else {
+      GLOG(("=C= get_header found nothing for [%s]", name));
+    }
   }
 
-  GLOG(("=C= get_header found %p for [%s]", h->slist, name));
   // slist_dump(h->slist, stderr);
-  return h->slist;
+  return h;
 }
 
-SList* hlist_add_header(HList* hlist, int translate_underscore,
-                        const char* name, const char* str, void* obj)
+HNode* hlist_add_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name, const char* str, void* obj)
 {
   if (str && obj) {
     GLOG(("=C= add_header have both str [%s] and obj [%p] -- BAD",
@@ -588,37 +596,43 @@ SList* hlist_add_header(HList* hlist, int translate_underscore,
     return 0;
   }
 
-  HNode* h = hlist_lookup(hlist, translate_underscore,
-                          name, 1, 0, 0);
-  if (!h) {
-    GLOG(("=C= add_header found nothing for [%s] -- BAD", name));
-    return 0;
+  if (h) {
+    GLOG(("=C= add_header using [%s] at %p", name, h));
+  } else {
+    h = hlist_lookup(hlist, translate_underscore,
+                     name, 1, 0, 0);
+    if (h) {
+      GLOG(("=C= add_header found / created [%s] at %p", name, h));
+    } else {
+      GLOG(("=C= add_header found nothing for [%s] -- BAD", name));
+      return 0;
+    }
   }
 
   if (str) {
     slist_add_str(h->slist, str);
-    ++hlist->ulen;
-    GLOG(("=C= add_header added str [%s] to [%s]", str, name));
   }
   if (obj) {
     slist_add_obj(h->slist, obj);
-    ++hlist->ulen;
-    GLOG(("=C= add_header added obj [%p] to [%s]", obj, name));
   }
 
-  return h->slist;
+  // slist_dump(h->slist, stderr);
+  return h;
 }
 
-void hlist_del_header(HList* hlist, int translate_underscore,
-                      const char* name)
+HNode* hlist_del_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name)
 {
   int hpos = 0;
   HNode* hprv = 0;
-  HNode* h = hlist_lookup(hlist, translate_underscore,
-                          name, 0, &hpos, &hprv);
-  if (!h) {
-    GLOG(("=C= del_header found nothing for [%s] -- OK", name));
-    return;
+
+  h = hlist_lookup(hlist, translate_underscore,
+                   name, 0, &hpos, &hprv);
+  if (h) {
+    GLOG(("=C= del_header found [%s] at [%p]", name, h));
+  } else {
+    GLOG(("=C= del_header found nothing for [%s]", name));
+    return 0;
   }
 
   if (hlist->data[hpos] == h) {
@@ -631,6 +645,7 @@ void hlist_del_header(HList* hlist, int translate_underscore,
   hnode_dealloc(h);
   --hlist->ulen;
   GLOG(("=C= del_header deleted [%s]", name));
+  return 0;
 }
 
 

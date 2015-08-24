@@ -140,17 +140,17 @@ int hlist_size(const HList* hlist);
 void hlist_dump(HList* hlist, FILE* fp);
 
 // Get the SList with values for a given header name.
-SList* hlist_get_header(HList* hlist, int translate_underscore,
-                        const char* name);
+HNode* hlist_get_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name);
 
 // Add a value to the SList for a given header name.
 // If header name already exists, append to its values; if not, create it.
-SList* hlist_add_header(HList* hlist, int translate_underscore,
-                        const char* name, const char* str, void* obj);
+HNode* hlist_add_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name, const char* str, void* obj);
 
 // Delete a given header from an HList, if that header is there.
-void hlist_del_header(HList* hlist, int translate_underscore,
-                      const char* name);
+HNode* hlist_del_header(HList* hlist, int translate_underscore,
+                        HNode* h, const char* name);
 
 
 // HList iterator functions.

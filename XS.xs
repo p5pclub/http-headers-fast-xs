@@ -179,7 +179,7 @@ hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* nam
 
   PREINIT:
     HList* h = 0;
-    SList* s = 0;
+    HNode* s = 0;
 
   PPCODE:
     h = (HList*) nh;
@@ -187,10 +187,13 @@ hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* nam
           h, hlist_size(h), translate_underscore, name));
 
     s = hlist_get_header(h, translate_underscore,
-                         name);
+                         s, name);
+    if (!s) {
+      XSRETURN_EMPTY;
+    }
 
     PUTBACK;
-    return_slist(aTHX_   s, "header_get");
+    return_slist(aTHX_   s->slist, "header_get");
     SPAGAIN;
 
 
@@ -206,9 +209,10 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
 
   PREINIT:
     HList* h = 0;
-    SList* s = 0;
+    HNode* s = 0;
     AV* arr = 0;
     int j;
+    int added = 0;
 
   PPCODE:
     h = (HList*) nh;
@@ -217,8 +221,8 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
 
     /* We look for the current values for the header. */
     s = hlist_get_header(h, translate_underscore,
-                         name);
-    int count = slist_size(s);
+                         s, name);
+    int count = s ? slist_size(s->slist) : 0;
     if (count > 0) {
       if (new_only) {
         /* header should not have existed before */
@@ -229,7 +233,7 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
       if (want_answer) {
         /* Put current values as the return for the function. */
         PUTBACK;
-        return_slist(aTHX_   s, "header_set");
+        return_slist(aTHX_   s->slist, "header_set");
         SPAGAIN;
       }
 
@@ -240,9 +244,8 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
         /* t = slist_clone(s); */
 
         /* Erase what is already there for this header */
-        hlist_del_header(h, translate_underscore,
-                         name);
-        GLOG(("=X= header_set: deleted key [%s]", name));
+        slist_clear(s->slist);
+        GLOG(("=X= header_set: cleared key [%s]", name));
       }
     }
 
@@ -252,8 +255,9 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
       if (SvIOK(val) || SvNOK(val) || SvPOK(val)) {
         STRLEN slen;
         const char* elem = SvPV(val, slen);
-        hlist_add_header(h, translate_underscore,
-                         name, elem, 0);
+        s = hlist_add_header(h, translate_underscore,
+                             s, name, elem, 0);
+        ++added;
         GLOG(("=X= header_set: added single value [%s]", elem));
       }
 
@@ -265,8 +269,9 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
 
         if (SvOBJECT(deref)) {
           GLOG(("=X= header_set: is an object"));
-          hlist_add_header(h, translate_underscore,
-                           name, 0, deref);
+          s = hlist_add_header(h, translate_underscore,
+                               s, name, 0, deref);
+          ++added;
           GLOG(("=X= header_set: added data value [%p]", deref));
           break;
         }
@@ -283,8 +288,9 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
             if (SvIOK(*svp) || SvNOK(*svp) || SvPOK(*svp)) {
               STRLEN slen;
               const char* elem = SvPV(*svp, slen);
-              hlist_add_header(h, translate_underscore,
-                               name, elem, 0);
+              s = hlist_add_header(h, translate_underscore,
+                                   s, name, elem, 0);
+              ++added;
               GLOG(("=X= header_set: added str value %d [%s]", j, elem));
             }
           }
@@ -292,6 +298,12 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
         }
        } while (0);
       }
+    }
+
+    /* Erase empty header */
+    if (!added) {
+      s = hlist_del_header(h, translate_underscore,
+                           0, name);
     }
 
 #
@@ -302,7 +314,7 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
 
   PREINIT:
     HList* h = 0;
-    SList* s = 0;
+    HNode* s = 0;
 
   PPCODE:
     h = (HList*) nh;
@@ -311,17 +323,16 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* 
 
     /* We look for the current values for the header and keep a reference to them */
     s = hlist_get_header(h, translate_underscore,
-                         name);
-    int count = slist_size(s);
+                         s, name);
+    int count = s ? slist_size(s->slist) : 0;
     if (count) {
-
       PUTBACK;
-      return_slist(aTHX_   s, "header_remove");
+      return_slist(aTHX_   s->slist, "header_remove");
       SPAGAIN;
 
       /* Erase what is already there for this header */
-      hlist_del_header(h, translate_underscore,
-                       name);
+      s = hlist_del_header(h, translate_underscore,
+                           0, name);
       GLOG(("=X= header_remove: deleted key [%s]", name));
     }
 
