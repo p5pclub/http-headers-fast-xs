@@ -54,32 +54,6 @@ static void snode_dealloc(SNode* snode) {
   GMEM_DEL(snode, SNode*, sizeof(SNode));
 }
 
-// Manage reference-counted SNode* elements.
-static SNode* snode_ref(SNode* snode)
-{
-  if (snode == 0) {
-    return 0;
-  }
-
-  ++snode->refcnt;
-  return snode;
-}
-
-static SNode* snode_unref(SNode* snode)
-{
-  if (snode == 0) {
-    return 0;
-  }
-
-  if (--snode->refcnt > 0) {
-    GLOG(("=C= Snode %p still has refcnt %d", snode, snode->refcnt));
-    return snode;
-  }
-
-  snode_dealloc(snode);
-  return 0;
-}
-
 
 static SList* slist_alloc(void) {
   SList* p = 0;
@@ -119,7 +93,7 @@ SList* slist_clone(SList* slist) {
   if (slist && slist->alen > 0) {
     p->alen = slist->alen;
     p->ulen = slist->ulen;
-    p->data = (SNode*) calloc(p->alen, sizeof(SNode)); // TODO macro GMEM
+    GMEM_NEWARR(p->data, SNode*, p->alen, sizeof(SNode));
     for (int j = 0; j < p->alen; ++j) {
       p->data[j].type = slist->data[j].type;
       if (j < slist->ulen) {
@@ -140,15 +114,10 @@ int slist_clear(SList* slist) {
     return 0;
   }
 
-#if 0
-  for (int j = 0; j < slist->ulen; ++j) {
-    snode_unref(slist->data[j]);
-  }
-#endif
   for (int j = 0; j < slist->ulen; ++j) {
     gstr_clear(&slist->data[j].data.gstr);
   }
-  free(slist->data);  // TODO macro GMEM
+  GMEM_DELARR(slist->data, SNode*, slist->alen, sizeof(SNode));
   slist->data = 0;
   slist->alen = slist->ulen = 0;
   return 1;
@@ -200,8 +169,8 @@ static void slist_grow(SList* slist) {
 
   int len = slist->alen ? 2*slist->alen : SLIST_INITIAL_SIZE;
   GLOG(("=C= growing SList %p from %d to %d", slist, slist->alen, len));
-
-  SNode* data = (SNode*) calloc(len, sizeof(SNode)); // TODO macro GMEM
+  SNode* data;
+  GMEM_NEWARR(data, SNode*, len, sizeof(SNode));
   for (int j = 0; j < slist->alen; ++j) {
     data[j].type = slist->data[j].type;
     gstr_init(&data[j].data.gstr, 0, 0);
@@ -218,7 +187,7 @@ static void slist_grow(SList* slist) {
     }
     gstr_init(&slist->data[j].data.gstr, 0, 0);
   }
-  free(slist->data); // TODO macro GMEM
+  GMEM_DELARR(slist->data, SNode*, slist->alen, sizeof(SNode));
   slist->data = data;
   slist->alen = len;
 }

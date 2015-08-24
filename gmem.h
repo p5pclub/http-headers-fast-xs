@@ -6,8 +6,24 @@
 
 #ifndef GMEM_CHECK
 
-#define GMEM_NEW(var, type, size)  do { var = (type) malloc(size); } while (0)
-#define GMEM_DEL(var, type, size)  do { free(var); var = 0; } while (0)
+#define GMEM_NEW(scalar, type, size) \
+  do { \
+    scalar = (type) malloc(size); \
+  } while (0)
+#define GMEM_NEWARR(array, type, count, size)  \
+  do { \
+    array = (type) calloc(count, size); \
+  } while (0)
+#define GMEM_DEL(scalar, type, size) \
+  do { \
+    free(scalar); \
+    scalar = 0; \
+} while (0)
+#define GMEM_DELARR(array, type, count, size) \
+  do { \
+    free(array); \
+    array = 0; \
+} while (0)
 #define GMEM_STRNEW(tgt, src, len, ret) \
   do { \
     tgt = 0; \
@@ -30,16 +46,27 @@
 
 #else
 
-#define GMEM_NEW(var, type, size) \
+#define GMEM_NEW(scalar, type, size) \
   do { \
-    var = (type) malloc(size); \
-    gmem_new_called(__FILE__, __LINE__, var, size);  \
+    scalar = (type) malloc(size); \
+    gmem_new_called(__FILE__, __LINE__, scalar, size, 1); \
   } while (0)
-#define GMEM_DEL(var, type, size) \
+#define GMEM_NEWARR(array, type, count, size) \
   do { \
-    gmem_del_called(__FILE__, __LINE__, var, size);  \
-    free(var); \
-    var = 0; \
+    array = (type) calloc(count, size); \
+    gmem_new_called(__FILE__, __LINE__, array, size, count); \
+  } while (0)
+#define GMEM_DEL(scalar, type, size) \
+  do { \
+    gmem_del_called(__FILE__, __LINE__, scalar, size, 1); \
+    free(scalar); \
+    scalar = 0; \
+  } while (0)
+#define GMEM_DELARR(array, type, count, size)   \
+  do { \
+    gmem_del_called(__FILE__, __LINE__, array, size, count); \
+    free(array); \
+    array = 0; \
   } while (0)
 #define GMEM_STRNEW(tgt, src, len, ret) \
   do { \
@@ -54,11 +81,22 @@
 extern long gmem_new;
 extern long gmem_del;
 
-int gmem_new_called(const char* file, int line, void* var, long size);
-int gmem_del_called(const char* file, int line, void* var, long size);
+int gmem_new_called(const char* file,
+                    int line,
+                    void* var,
+                    long size,
+                    int count);
+int gmem_del_called(const char* file,
+                    int line,
+                    void* var,
+                    long size,
+                    int count);
 
-int gmem_strnew(char** tgt, const char* src, int len);
-int gmem_strdel(char** str, int len);
+int gmem_strnew(char** tgt,
+                const char* src,
+                int len);
+int gmem_strdel(char** str,
+                int len);
 
 #endif // #ifndef GMEM_CHECK
 
