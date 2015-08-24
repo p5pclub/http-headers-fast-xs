@@ -4,7 +4,7 @@ use strict;
 use Test qw(plan ok);
 use Test::Requires 'URI';
 
-plan tests => 164;
+plan tests => 165;
 
 my($h, $h2);
 sub j { join("|", @_) }
@@ -21,6 +21,10 @@ ok($h->as_string, "Foo: bar\nFoo: baaaaz\nFoo: baz\n");
 
 $h = HTTP::Headers::Fast->new(foo => ["bar", "baz"]);
 ok($h->as_string, "Foo: bar\nFoo: baz\n");
+
+$h = HTTP::Headers::Fast->new(foo => 1, bar => 2);
+$h->header(foo => undef);
+ok($h->as_string, "Bar: 2\n");
 
 $h = HTTP::Headers::Fast->new(foo => 1, bar => 2, foo_bar => 3);
 ok($h->as_string, "Bar: 2\nFoo: 1\nFoo-Bar: 3\n");
