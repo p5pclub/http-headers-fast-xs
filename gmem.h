@@ -38,8 +38,8 @@
   } while (0)
 #define GMEM_STRDEL(str, len) \
   do { \
-    if (!src) break; \
-    int l = len <=0 ? strlen(src) + 1 : len; \
+    if (!str) break; \
+    int l = len <=0 ? strlen(str) + 1 : len; \
     GMEM_DEL(str, char*, l); \
     str = 0; \
   } while (0)
@@ -54,7 +54,7 @@
 #define GMEM_NEWARR(array, type, count, size) \
   do { \
     array = (type) calloc(count, size); \
-    gmem_new_called(__FILE__, __LINE__, array, size, count); \
+    gmem_new_called(__FILE__, __LINE__, array, count, size); \
   } while (0)
 #define GMEM_DEL(scalar, type, size) \
   do { \
@@ -64,7 +64,7 @@
   } while (0)
 #define GMEM_DELARR(array, type, count, size)   \
   do { \
-    gmem_del_called(__FILE__, __LINE__, array, size, count); \
+    gmem_del_called(__FILE__, __LINE__, array, count, size); \
     free(array); \
     array = 0; \
   } while (0)
@@ -84,13 +84,13 @@ extern long gmem_del;
 int gmem_new_called(const char* file,
                     int line,
                     void* var,
-                    long size,
-                    int count);
+                    int count,
+                    long size);
 int gmem_del_called(const char* file,
                     int line,
                     void* var,
-                    long size,
-                    int count);
+                    int count,
+                    long size);
 
 int gmem_strnew(char** tgt,
                 const char* src,

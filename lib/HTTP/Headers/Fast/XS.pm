@@ -275,7 +275,7 @@ sub remove_header {
 sub remove_content_headers {
     my $self = shift;
     my $c = ref($self)->new;
-    for my $field (grep $entity_header{$_} || /^Content-/, hhf_hlist_header_names($self->{hlist})) {
+    for my $field (grep $entity_header{$_} || /^Content-/, hhf_hlist_header_names($self->{hlist}, 1)) {
         my @values = hhf_hlist_header_remove($self->{hlist},
                                              $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
                                              $field);
@@ -381,27 +381,27 @@ sub _header {
 }
 
 sub _sorted_field_names {
-    my $self = shift;
+    my ($self, $canonical) = @_;
 
     my @sorted = sort  {
         ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
             || $a cmp $b
-    } hhf_hlist_header_names($self->{hlist});
+    } hhf_hlist_header_names($self->{hlist}, $canonical // 1);
 
     return \@sorted;
 }
 
 sub header_field_names {
     my $self = shift;
-    return map $standard_case{$_} || $_, @{ $self->_sorted_field_names }
+    return map $standard_case{$_} || $_, @{ $self->_sorted_field_names(0) }
       if wantarray;
-    my @names = hhf_hlist_header_names($self->{hlist});
+    my @names = hhf_hlist_header_names($self->{hlist}, 0);
     return @names // 0;
 }
 
 sub scan {
     my ( $self, $sub ) = @_;
-    for my $key (@{ $self->_sorted_field_names }) {
+    for my $key (@{ $self->_sorted_field_names(0) }) {
         next if substr($key, 0, 1) eq '_';
         my @vals = hhf_hlist_header_get($self->{hlist},
                                         $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
@@ -455,7 +455,7 @@ sub _as_string {
 sub as_string_without_sort {
     my ( $self, $endl ) = @_;
     $endl = "\n" unless defined $endl;
-    $self->_as_string($endl, [ hhf_hlist_header_names($self->{hlist}) ]);
+    $self->_as_string($endl, [ hhf_hlist_header_names($self->{hlist}, 0) ]);
 }
 
 sub clone {

@@ -9,7 +9,7 @@
 /*
  * Given an HList, return all of its nodes to Perl.
  */
-static int return_hlist(pTHX_   HList* list, const char* func) {
+static int return_hlist(pTHX_   HList* list, const char* func, int canonical) {
 
   dSP;
 
@@ -31,8 +31,9 @@ static int return_hlist(pTHX_   HList* list, const char* func) {
     ++num;
 
     /* TODO: This can probably be optimised A LOT*/
-    GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->canonical_name));
-    PUSHs(sv_2mortal(newSVpv(node->canonical_name, 0)));
+    const char* s = node->name + (canonical && node->name[0] == ':');
+    GLOG(("=X= %s: returning %2d - str [%s]", func, num, s));
+    PUSHs(sv_2mortal(newSVpv(s, 0)));
   }
 
   PUTBACK;
@@ -157,7 +158,7 @@ hhf_hlist_clear(unsigned long nh)
 # Get all the keys in an existing HList.
 #
 void
-hhf_hlist_header_names(unsigned long nh)
+hhf_hlist_header_names(unsigned long nh, int canonical)
 
   PREINIT:
     HList* h = 0;
@@ -167,7 +168,7 @@ hhf_hlist_header_names(unsigned long nh)
     GLOG(("=X= HLIST_HEADER_NAMES(%p|%d)", h, hlist_size(h)));
 
     PUTBACK;
-    return_hlist(aTHX_   h, "header_names");
+    return_hlist(aTHX_   h, "header_names", canonical);
     SPAGAIN;
 
 
@@ -175,7 +176,7 @@ hhf_hlist_header_names(unsigned long nh)
 # Get all the values for a given key in an existing HList.
 #
 void
-hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* name)
+hhf_hlist_header_get(unsigned long nh, int translate_underscore, char* name)
 
   PREINIT:
     HList* h = 0;
@@ -205,7 +206,7 @@ hhf_hlist_header_get(unsigned long nh, int translate_underscore, const char* nam
 # want_answer: return previously existing values
 #
 void
-hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, int want_answer, const char* name, SV* val)
+hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, int want_answer, char* name, SV* val)
 
   PREINIT:
     HList* h = 0;
@@ -310,7 +311,7 @@ hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, i
 # Remove a given key (and all its values) in an existing HList.
 #
 void
-hhf_hlist_header_remove(unsigned long nh, int translate_underscore, const char* name)
+hhf_hlist_header_remove(unsigned long nh, int translate_underscore, char* name)
 
   PREINIT:
     HList* h = 0;

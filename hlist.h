@@ -86,14 +86,10 @@ void siter_next(SIter* siter);
  * A linked list node, reference counted, holding:
  *
  * + a dynamically allocated string - name
- * + a dynamically allocated string - canonical name
- * + an integer length - canonical offset
  * + a pointer to an SList holding values for this name
  */
 typedef struct HNode {
   char* name;
-  char* canonical_name;
-  int canonical_offset;
   SList* slist;
   struct HNode* nxt;
 } HNode;

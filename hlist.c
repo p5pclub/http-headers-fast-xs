@@ -245,9 +245,7 @@ void siter_next(SIter* siter) {
 }
 
 
-static HNode* hnode_alloc(const char* name,
-                          const char* canonical_name,
-                          int canonical_offset) {
+static HNode* hnode_alloc(const char* name) {
   HNode* hnode = 0;
   GMEM_NEW(hnode, HNode*, sizeof(HNode));
   if (hnode == 0) {
@@ -257,15 +255,12 @@ static HNode* hnode_alloc(const char* name,
   hnode->nxt = 0;
   hnode->slist = 0;
 
-  hnode->canonical_offset = canonical_offset;
   int l = 0;
   GMEM_STRNEW(hnode->name, name, -1, l);
-  GMEM_STRNEW(hnode->canonical_name, canonical_name, -1, l);
 
-  GLOG(("=C= HNode allocating at %p [%s/%s]",
+  GLOG(("=C= HNode allocating at %p [%s]",
         hnode,
-        hnode->canonical_name ? hnode->canonical_name + hnode->canonical_offset : "*NULL*",
-        hnode->name ? hnode->name : "*NULL*"));
+        hnode->name ? hnode->name + (hnode->name[0] == ':') : "*NULL*"));
   return hnode;
 }
 
@@ -274,13 +269,11 @@ static void hnode_dealloc(HNode* hnode) {
     return;
   }
 
-  GLOG(("=C= Hnode deallocating at %p [%s/%s]",
+  GLOG(("=C= Hnode deallocating at %p [%s]",
         hnode,
-        hnode->canonical_name ? hnode->canonical_name + hnode->canonical_offset : "*NULL*",
-        hnode->name ? hnode->name : "*NULL*"));
-  GMEM_DEL(hnode->canonical_name, char*, -1);
-  GMEM_DEL(hnode->name, char*, -1);
+        hnode->name ? hnode->name + (hnode->name[0] == ':') : "*NULL*"));
   slist_destroy(hnode->slist);
+  GMEM_STRDEL(hnode->name, -1);
   GMEM_DEL(hnode, HNode*, sizeof(HNode));
 }
 
@@ -350,7 +343,7 @@ HList* hlist_clone(HList* hlist) {
     for (int j = 0; j < hlist->alen; ++j) {
       HNode* q = 0;
       for (HNode* h = hlist->data[j]; h != 0; h = h->nxt) {
-        HNode* p = hnode_alloc(h->name, h->canonical_name, h->canonical_offset);
+        HNode* p = hnode_alloc(h->name);
         p->slist = slist_clone(h->slist);
         ++nl->ulen;
 
@@ -386,8 +379,8 @@ void hlist_dump(HList* hlist, FILE* fp)
   fprintf(fp, "HList at 0x%p with %d elements:\n", hlist, hlist_size(hlist));
   for (int j = 0; j < hlist->alen; ++j) {
     for (HNode* h = hlist->data[j]; h != 0; h = h->nxt) {
-      fprintf(fp, "> Name: [%p] %s (%s)\n",
-              h, h->canonical_name + h->canonical_offset, h->name);
+      fprintf(fp, "> Name: %p [%d|%s]\n",
+              h, h->name[0] == ':', h->name);
       slist_dump(h->slist, fp);
     }
   }
@@ -498,7 +491,7 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
   HNode* h = 0;
   HNode* q = 0;
   for (h = hlist->data[pos]; h != 0; h = h->nxt) {
-    if (memcmp(h->canonical_name, canonical, l) == 0) {
+    if (memcmp(h->name, canonical, l) == 0) {
       break;
     }
     q = h;
@@ -518,7 +511,8 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
     GMEM_DEL(canonical, char*, l);
   } else {
     // Not found and we were asked to insert
-    h = hnode_alloc(0, 0, 0);
+    h = hnode_alloc(0);
+    h->name = canonical;
     h->slist = slist_clone(0);
 
     ++hlist->ulen;
@@ -527,11 +521,6 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
     } else {
       q->nxt = h;
     }
-
-    int l = 0;
-    GMEM_STRNEW(h->name, name, -1, l);
-    h->canonical_name = canonical;
-    h->canonical_offset = (name[0] == ':');
   }
 
   return h;
