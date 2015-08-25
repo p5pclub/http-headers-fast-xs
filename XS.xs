@@ -297,18 +297,21 @@ header(SV *self, ...)
             return;
 
         if (value == NULL) {
+            /* return wantarray ? () : undef */
             if (GIMME_V == G_ARRAY)
                 XSRETURN(0);
             else
                 XSRETURN_UNDEF;
         }
 
-        if (!SvROK(value)) {
+        if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV) {
+            /* return $old[0] */
             PUSHs(value);
             PUTBACK;
             XSRETURN(1);
         }
 
+        /* return @old */
         val_array = (AV *) SvRV(value);
         top_index = av_len(val_array);
         if (GIMME_V == G_ARRAY) {
@@ -322,7 +325,7 @@ header(SV *self, ...)
             XSRETURN(top_index + 1);
         }
 
-        /* join( ', ', @old ) */
+        /* return join( ', ', @old ) */
         val_array_elem = av_fetch(val_array, 0, 0);
         if (val_array_elem == NULL)
             croak("av_fetch() failed. This should not happen.");
