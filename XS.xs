@@ -82,37 +82,52 @@ void handle_standard_case(pTHX_ char *field, int len) {
     *standard_case_val = newSVpv( orig, len );
 }
 
+SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
+    SV **h;
+
+    /* check if field has a value */
+    if ( !hv_exists(self, field, len) ) {
+        return NULL;
+    }
+
+    h = hv_fetch(self, field, len, 0);
+    if (h == NULL)
+        croak("hv_fetch() failed. This should not happen.");
+
+    return newSVsv(*h);
+}
+
 /* Returns if we store that field name or not */
 bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
-    SV   **h, **a_value;
-    AV   *av_entry;
+    AV   *val_array;
+    SV   *value, **val_array_elem;
     int  top_index, i;
 
-    h = hv_fetch( (HV *) SvRV(self), field, len, 0 );
-    if ( h == NULL || !SvOK(*h) )
-        /* If the field is not found, don't put anything on stack -> that will return () to perl */
+    value = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
+
+    if (value == NULL)
         return false;
-    
-    if ( SvROK(*h) && SvTYPE( SvRV(*h) ) == SVt_PVAV ) {
-        /* If the value is an array, put all the values of the array on stack. This will return @$h to perl */
-        av_entry = (AV *) SvRV(*h);
-        top_index = av_len(av_entry);
+
+    if ( SvROK(value) && SvTYPE( SvRV(value) ) == SVt_PVAV ) {
+        /* If the value is an array, put all the values of the array on stack.
+         * This will return @$h to perl */
+        val_array = (AV *) SvRV(value);
+        top_index = av_len(val_array);
         EXTEND(SP, top_index);
 
         for (i = 0; i <= top_index; i++) {
-            a_value = av_fetch( av_entry, i, 0 );
+            val_array_elem = av_fetch(val_array, i, 0);
 
-            if ( !a_value ) {
+            if (val_array_elem == NULL)
                 croak("av_fetch() failed. This should not happen.");
-            }
 
-            PUSHs(sv_2mortal(newSVsv(*a_value)));
+            PUSHs(sv_2mortal(newSVsv(*val_array_elem)));
         }
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
         EXTEND(SP, 1);
-        PUSHs(sv_2mortal(newSVsv(*h)));
+        PUSHs(sv_2mortal(newSVsv(value)));
     }
 
     /* put the local SP in THX -> SP was EXTENDED */
@@ -149,6 +164,20 @@ void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     } else {
         av_push( (AV *) SvRV(*h), val );
     }
+}
+
+void set_header(pTHX_ HV *self, char *field, int len, SV *val) {
+    SV **val_0;
+
+    /* av_len == 0 here means that we have one item in av */
+    if ( SvROK(val) &&
+         SvTYPE( SvRV(val) ) == SVt_PVAV &&
+         av_len( (AV *)SvRV(val) ) == 0 )
+    {
+        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+        val = *val_0;
+    }
+    hv_store(self, field, len, newSVsv(val), 0);
 }
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
@@ -197,6 +226,124 @@ push_header( SV *self, ... )
             __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
        }
 
+void
+header(SV *self, ...)
+    PREINIT:
+        char   *field, *field_lc, *tmp, *val_str, *val_str_tail;
+        int    arg, i, top_index;
+        STRLEN len;
+        AV     *val_array;
+        SV     *args[items], *value, **val_array_elem;
+        HV     *seen, *self_hash;
+    PPCODE:
+        if (items <= 1)
+            croak("Usage: $h->header($field, ...)");
+
+        /* check if we can skip preparing the results */
+        self_hash = (HV *) SvRV(self);
+
+        if (items == 2) {
+            /* @old = $self->_header_get(@_) */
+            field = SvPV(ST(1), len);
+            handle_standard_case(aTHX_ field, len);
+            value = get_header_value(aTHX_ self_hash, field, len);
+        } else if (items == 3) {
+            /* $self->_header_set(@_) */
+            field = SvPV(ST(1), len);
+            handle_standard_case(aTHX_ field, len);
+            value = get_header_value(aTHX_ self_hash, field, len);
+
+            if (value != NULL && !SvOK(ST(2))) {
+                hv_delete(self_hash, field, len, G_DISCARD);
+            } else {
+                set_header(aTHX_ self_hash, field, len, ST(2));
+            }
+        } else {
+            /* save the args from the stack since _header_push()
+             * might overwrite them with results */
+            for (arg = 1; arg < items; arg++)
+                args[arg] = ST(arg);
+
+            seen = newHV();
+            for (arg = 1; arg < items; arg += 2) {
+                /* lc $field - but don't modify the original */
+                field = SvPV(args[arg], len);
+                field_lc = (char *) alloca(len + 1);
+                for (i = 0; i < len; i++)
+                    field_lc[i] = tolower( field[i] );
+
+                if ( !hv_exists(seen, field_lc, len) ) {
+                    hv_store(seen, field_lc, len, newSViv(1), 0);
+
+                    /* @old = $self->_header_set($field, shift) */
+                    handle_standard_case(aTHX_ field, len);
+
+                    value = get_header_value(aTHX_ self_hash, field, len);
+                    if (value != NULL && !SvOK(args[arg + 1])) {
+                        hv_delete(self_hash, field, len, G_DISCARD);
+                    } else {
+                        set_header(aTHX_ self_hash, field, len, args[arg + 1]);
+                    }
+                } else {
+                    /* @old = $self->_header_push($field, shift) */
+                    handle_standard_case(aTHX_ field, len);
+                    value = get_header_value(aTHX_ self_hash, field, len);
+                    __push_header(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
+                }
+            }
+        }
+
+        if (GIMME_V == G_VOID)
+            return;
+
+        if (value == NULL) {
+            /* return wantarray ? () : undef */
+            if (GIMME_V == G_ARRAY)
+                XSRETURN(0);
+            else
+                XSRETURN_UNDEF;
+        }
+
+        if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV) {
+            /* return $old[0] */
+            PUSHs(value);
+            PUTBACK;
+            XSRETURN(1);
+        }
+
+        /* return @old */
+        val_array = (AV *) SvRV(value);
+        top_index = av_len(val_array);
+        if (GIMME_V == G_ARRAY) {
+            for (i = 0; i <= top_index; i++) {
+                val_array_elem = av_fetch(val_array, i, 0);
+                if (val_array_elem == NULL)
+                    croak("av_fetch() failed. This should not happen.");
+                PUSHs(*val_array_elem);
+            }
+            PUTBACK;
+            XSRETURN(top_index + 1);
+        }
+
+        /* return join( ', ', @old ) */
+        val_array_elem = av_fetch(val_array, 0, 0);
+        if (val_array_elem == NULL)
+            croak("av_fetch() failed. This should not happen.");
+        val_str = SvPV(*val_array_elem, len);
+        val_str_tail = val_str + len;
+
+        for (i = 1; i <= top_index; i++) {
+            val_array_elem = av_fetch(val_array, i, 0);
+            if (val_array_elem == NULL)
+                croak("av_fetch() failed. This should not happen.");
+
+            tmp  = SvPV_nolen(*val_array_elem);
+            val_str_tail = stpcpy(val_str_tail, ", ");
+            val_str_tail = stpcpy(val_str_tail, tmp);
+        }
+        PUSHs(newSVpv(val_str, val_str_tail - val_str));
+        PUTBACK;
+        XSRETURN(1);
 
 void
 _header_get( SV *self, SV *field_name, ... )
@@ -225,7 +372,6 @@ _header_set(SV *self, SV *field_name, SV *val)
         char   *field;
         STRLEN len;
         bool   found;
-        SV     **a_value;
     PPCODE:
         field = SvPV(field_name, len);
 
@@ -242,14 +388,7 @@ _header_set(SV *self, SV *field_name, SV *val)
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            /* av_len == 0 here means that we have one item in av */
-            if ( SvROK(val) &&
-                 SvTYPE( SvRV(val) ) == SVt_PVAV &&
-                 av_len((AV *)SvRV(val)) == 0) {
-                a_value = av_fetch( (AV *)SvRV(val), 0, 0 );
-                val = *a_value;
-            }
-            hv_store( (HV *) SvRV(self), field, len, newSVsv(val), 0);
+            set_header(aTHX_ (HV *)SvRV(self), field, len, val);
         }
 
 void
