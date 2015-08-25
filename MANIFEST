@@ -1,4 +1,3 @@
-lib/HTTP/Headers/Fast.pm
 lib/HTTP/Headers/Fast/XS.pm
 LICENSE
 Makefile.PL
