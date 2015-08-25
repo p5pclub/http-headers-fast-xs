@@ -299,7 +299,7 @@ header(SV *self, ...)
         if (value == NULL)
             XSRETURN_UNDEF;
 
-        if (!SvRV(value)) {
+        if (!SvROK(value)) {
             PUSHs(value);
             PUTBACK;
             XSRETURN(1);
