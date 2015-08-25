@@ -253,7 +253,7 @@ header(SV *self, ...)
             handle_standard_case(aTHX_ field, len);
             value = get_header_value(aTHX_ self_hash, field, len);
 
-            if (value != NULL && SvOK(ST(2))) {
+            if (value != NULL && !SvOK(ST(2))) {
                 hv_delete(self_hash, field, len, G_DISCARD);
             } else {
                 set_header(aTHX_ self_hash, field, len, ST(2));
@@ -279,7 +279,7 @@ header(SV *self, ...)
                     handle_standard_case(aTHX_ field, len);
 
                     value = get_header_value(aTHX_ self_hash, field, len);
-                    if (value != NULL && SvOK(args[arg + 1])) {
+                    if (value != NULL && !SvOK(args[arg + 1])) {
                         hv_delete(self_hash, field, len, G_DISCARD);
                     } else {
                         set_header(aTHX_ self_hash, field, len, args[arg + 1]);
