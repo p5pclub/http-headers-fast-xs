@@ -226,6 +226,117 @@ push_header( SV *self, ... )
             __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
        }
 
+void
+header(SV *self, ...)
+    PREINIT:
+        char   *field, *field_lc, *tmp, *val_str, *val_str_tail;
+        int    arg, i, top_index;
+        STRLEN len;
+        AV     *val_array;
+        SV     *args[items], *value, **val_array_elem;
+        HV     *seen, *self_hash;
+    PPCODE:
+        if (items <= 1)
+            croak("Usage: $h->header($field, ...)");
+
+        /* check if we can skip preparing the results */
+        self_hash = (HV *) SvRV(self);
+
+        if (items == 2) {
+            /* @old = $self->_header_get(@_) */
+            field = SvPV(ST(1), len);
+            handle_standard_case(aTHX_ field, len);
+            value = get_header_value(aTHX_ self_hash, field, len);
+        } else if (items == 3) {
+            /* $self->_header_set(@_) */
+            field = SvPV(ST(1), len);
+            handle_standard_case(aTHX_ field, len);
+            value = get_header_value(aTHX_ self_hash, field, len);
+
+            if (value != NULL && SvOK(ST(2))) {
+                hv_delete(self_hash, field, len, G_DISCARD);
+            } else {
+                set_header(aTHX_ self_hash, field, len, ST(2));
+            }
+        } else {
+            /* save the args from the stack since _header_push()
+             * might overwrite them with results */
+            for (arg = 1; arg < items; arg++)
+                args[arg] = ST(arg);
+
+            seen = newHV();
+            for (arg = 1; arg < items; arg += 2) {
+                /* lc $field - but don't modify the original */
+                field = SvPV(args[arg], len);
+                field_lc = (char *) alloca(len + 1);
+                for (i = 0; i < len; i++)
+                    field_lc[i] = tolower( field[i] );
+
+                if ( !hv_exists(seen, field_lc, len) ) {
+                    hv_store(seen, field_lc, len, newSViv(1), 0);
+
+                    /* @old = $self->_header_set($field, shift) */
+                    handle_standard_case(aTHX_ field, len);
+
+                    value = get_header_value(aTHX_ self_hash, field, len);
+                    if (value != NULL && SvOK(args[arg + 1])) {
+                        hv_delete(self_hash, field, len, G_DISCARD);
+                    } else {
+                        set_header(aTHX_ self_hash, field, len, args[arg + 1]);
+                    }
+                } else {
+                    /* @old = $self->_header_push($field, shift) */
+                    handle_standard_case(aTHX_ field, len);
+                    value = get_header_value(aTHX_ self_hash, field, len);
+                    __push_header(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
+                }
+            }
+        }
+
+        if (GIMME_V == G_VOID)
+            return;
+
+        if (value == NULL)
+            XSRETURN_UNDEF;
+
+        if (!SvRV(value)) {
+            PUSHs(value);
+            PUTBACK;
+            XSRETURN(1);
+        }
+
+        val_array = (AV *) SvRV(value);
+        top_index = av_len(val_array);
+        if (GIMME_V == G_ARRAY) {
+            for (i = 0; i <= top_index; i++) {
+                val_array_elem = av_fetch(val_array, i, 0);
+                if (val_array_elem == NULL)
+                    croak("av_fetch() failed. This should not happen.");
+                PUSHs(*val_array_elem);
+            }
+            PUTBACK;
+            XSRETURN(top_index + 1);
+        }
+
+        /* join( ', ', @old ) */
+        val_array_elem = av_fetch(val_array, i, 0);
+        if (val_array_elem == NULL)
+            croak("av_fetch() failed. This should not happen.");
+        val_str = SvPV(*val_array_elem, len);
+        val_str_tail = val_str + len;
+
+        for (i = 0; i <= top_index; i++) {
+            val_array_elem = av_fetch(val_array, i, 0);
+            if (val_array_elem == NULL)
+                croak("av_fetch() failed. This should not happen.");
+
+            tmp  = SvPV_nolen(*val_array_elem);
+            val_str_tail = stpcpy(val_str_tail, ", ");
+            val_str_tail = stpcpy(val_str_tail, tmp);
+        }
+        PUSHs(newSVpv(val_str, val_str_tail - val_str));
+        PUTBACK;
+        XSRETURN(1);
 
 void
 _header_get( SV *self, SV *field_name, ... )
