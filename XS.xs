@@ -296,8 +296,12 @@ header(SV *self, ...)
         if (GIMME_V == G_VOID)
             return;
 
-        if (value == NULL)
-            XSRETURN_UNDEF;
+        if (value == NULL) {
+            if (GIMME_V == G_ARRAY)
+                XSRETURN(0);
+            else
+                XSRETURN_UNDEF;
+        }
 
         if (!SvROK(value)) {
             PUSHs(value);
