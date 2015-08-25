@@ -55,6 +55,9 @@ of L<HTTP::Headers::Fast> with the XS implementation.
 You can continue to use L<HTTP::Headers::Fast> and any other module that
 depends on it just like you did before. It's just faster now.
 
+This is still B<EXPERIMENTAL> and in development. Try it out, enjoy, and use
+at your own risk.
+
 =head1 METHODS
 
 Implemented methods in XS:
