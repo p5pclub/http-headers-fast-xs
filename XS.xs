@@ -323,13 +323,13 @@ header(SV *self, ...)
         }
 
         /* join( ', ', @old ) */
-        val_array_elem = av_fetch(val_array, i, 0);
+        val_array_elem = av_fetch(val_array, 0, 0);
         if (val_array_elem == NULL)
             croak("av_fetch() failed. This should not happen.");
         val_str = SvPV(*val_array_elem, len);
         val_str_tail = val_str + len;
 
-        for (i = 0; i <= top_index; i++) {
+        for (i = 1; i <= top_index; i++) {
             val_array_elem = av_fetch(val_array, i, 0);
             if (val_array_elem == NULL)
                 croak("av_fetch() failed. This should not happen.");
