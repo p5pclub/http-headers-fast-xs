@@ -6,6 +6,14 @@
 #include "glog.h"
 #include "hlist.h"
 
+#define MY_CXT_KEY "HTTP::Headers::Fast::XS::_guts" XS_VERSION
+
+typedef struct {
+    SV **translate;
+} my_cxt_t;
+
+START_MY_CXT;
+
 /*
  * Given an HList, return all of its nodes to Perl.
  */
@@ -87,6 +95,16 @@ static int return_slist(pTHX_   SList* list, const char* func) {
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
+BOOT:
+{
+    MY_CXT_INIT;
+    MY_CXT.translate = hv_fetch(
+        gv_stashpvn( "HTTP::Headers::Fast", 19, 0 ),
+        "TRANSLATE_UNDERSCORE",
+        20,
+        0
+    );
+}
 
 #
 # Create a new HList.
