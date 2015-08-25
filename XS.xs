@@ -94,7 +94,7 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     if (h == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
-    return *h;
+    return newSVsv(*h);
 }
 
 /* Returns if we store that field name or not */
