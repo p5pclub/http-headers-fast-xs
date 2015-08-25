@@ -234,23 +234,23 @@ sub clear {
     hhf_hlist_clear($self->{hlist});
 }
 
-sub push_header {
-    my $self = shift;
-
-    if (@_ == 2) {
-        my ($field, $val) = @_;
-        hhf_hlist_header_set($self->{hlist},
-                             $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                             0, 1, 0, $field, $val);
-    } else {
-        while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
-            hhf_hlist_header_set($self->{hlist},
-                                 $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
-                                 0, 1, 0, $field, $val);
-        }
-    }
-    return ();
-}
+# sub push_header {
+#     my $self = shift;
+#
+#     if (@_ == 2) {
+#         my ($field, $val) = @_;
+#         hhf_hlist_header_set($self->{hlist},
+#                              $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
+#                              0, 1, 0, $field, $val);
+#     } else {
+#         while ( my ($field, $val) = splice( @_, 0, 2 ) ) {
+#             hhf_hlist_header_set($self->{hlist},
+#                                  $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE // 0,
+#                                  0, 1, 0, $field, $val);
+#         }
+#     }
+#     return ();
+# }
 
 sub init_header {
     Carp::croak('Usage: $h->init_header($field, $val)') if @_ != 3;

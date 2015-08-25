@@ -6,6 +6,9 @@
 #include "glog.h"
 #include "hlist.h"
 
+#define HLIST_KEY_STR "hlist"
+#define HLIST_KEY_LEN 5
+
 #define MY_CXT_KEY "HTTP::Headers::Fast::XS::_guts" XS_VERSION
 
 typedef struct {
@@ -13,6 +16,25 @@ typedef struct {
 } my_cxt_t;
 
 START_MY_CXT;
+
+static HList* fetch_hlist(pTHX_  SV* self) {
+  HList* h;
+
+  h = SvIV(*hv_fetch((HV*) SvRV(self), HLIST_KEY_STR, HLIST_KEY_LEN, 0));
+  return h;
+}
+
+static HNode* add_scalar(pTHX_  HList* h, HNode* n, const char* ckey, SV* pval) {
+  if (!SvIOK(pval) && !SvNOK(pval) && SvPOK(pval)) {
+    return n;
+  }
+
+  STRLEN slen;
+  const char* cval = SvPV(pval, slen);
+  n = hlist_add_header(h, 1, n, ckey, cval, 0);
+  GLOG(("=X= added scalar [%s] => [%s]", ckey, cval));
+  return n;
+}
 
 /*
  * Given an HList, return all of its nodes to Perl.
@@ -355,3 +377,40 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, char* name)
       GLOG(("=X= header_remove: deleted key [%s]", name));
     }
 
+
+#
+# push_header
+#
+void
+push_header(SV* self, ...)
+  PREINIT:
+    HList* h = 0;
+    HNode* n = 0;
+    int    j = 0;
+    SV*    pkey;
+    SV*    pval;
+    STRLEN len;
+    char*  ckey;
+    char*  cval;
+
+  CODE:
+    if (items % 2 == 0) {
+      croak("push_header needs an even number of arguments");
+    }
+
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= HLIST_PUSH_HEADER(%p|%d), %d params", h, hlist_size(h), items));
+
+    for (j = 0; j < items; ) {
+        pkey = ST(++j);
+        if (j > items) {
+          break;
+        }
+        pval = ST(++j);
+        if (j > items) {
+          break;
+        }
+
+        ckey = SvPV(pkey, len);
+        n = add_scalar(aTHX_  h, n, ckey, pval);
+    }
