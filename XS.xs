@@ -17,100 +17,195 @@ typedef struct {
 
 START_MY_CXT;
 
+static HList* fetch_hlist(pTHX_  SV* self);
+static HNode* set_scalar(pTHX_  HList* h, HNode* n, int trans, const char* ckey, SV* pval);
+static HNode* set_array (pTHX_  HList* h, HNode* n, int trans, const char* ckey, AV* pval);
+static HNode* set_value (pTHX_  HList* h, HNode* n, int trans, const char* ckey, SV* pval);
+
 static HList* fetch_hlist(pTHX_  SV* self) {
   HList* h;
 
-  h = SvIV(*hv_fetch((HV*) SvRV(self), HLIST_KEY_STR, HLIST_KEY_LEN, 0));
+  h = (HList*) SvIV(*hv_fetch((HV*) SvRV(self),
+                    HLIST_KEY_STR, HLIST_KEY_LEN, 0));
   return h;
 }
 
-static HNode* add_scalar(pTHX_  HList* h, HNode* n, const char* ckey, SV* pval) {
-  if (!SvIOK(pval) && !SvNOK(pval) && SvPOK(pval)) {
-    return n;
-  }
+static int fetch_translate(pTHX_ SV* self) {
+  dMY_CXT;
 
+  SV* ptrans = GvSV(*MY_CXT.translate);
+  if (!ptrans) {
+    croak("$TRANSLATE_UNDERSCORE variable does not exist");
+  }
+  int trans = SvOK(ptrans) && SvTRUE(ptrans);
+  GLOG(("=X= translate_underscore is %d", trans));
+  return trans;
+}
+
+static HNode* set_scalar(pTHX_  HList* h, HNode* n, int trans, const char* ckey, SV* pval) {
   STRLEN slen;
   const char* cval = SvPV(pval, slen);
-  n = hlist_add_header(h, 1, n, ckey, cval, 0);
-  GLOG(("=X= added scalar [%s] => [%s]", ckey, cval));
+  n = hlist_add_header(h, trans, n, ckey, cval, 0);
+  GLOG(("=X= set scalar [%s] => [%s]", ckey, cval));
+  return n;
+}
+
+static HNode* set_array(pTHX_  HList* h, HNode* n, int trans, const char* ckey, AV* pval) {
+  int count = av_len(pval) + 1;
+  for (int j = 0; j < count; ++j) {
+    SV** svp = av_fetch(pval, j, 0);
+    n = set_value(aTHX_  h, n, trans, ckey, *svp);
+  }
+  return n;
+}
+
+static HNode* set_value(pTHX_  HList* h, HNode* n, int trans, const char* ckey, SV* pval) {
+  if (SvIOK(pval) || SvNOK(pval) || SvPOK(pval)) {
+    n = set_scalar(aTHX_  h, n, trans, ckey, pval);
+  }
+
+  if (SvROK(pval)) {
+    SV* deref = SvRV(pval);
+
+    if (SvTYPE(deref) == SVt_PVAV) {
+      AV* array = (AV*) SvRV(pval);
+      n = set_array(aTHX_  h, n, trans, ckey, array);
+    }
+  }
   return n;
 }
 
 /*
  * Given an HList, return all of its nodes to Perl.
  */
-static int return_hlist(pTHX_   HList* list, const char* func, int canonical) {
+static void return_hlist(pTHX_   HList* list, const char* func, int want) {
 
   dSP;
 
+  if (want == G_VOID) {
+    GLOG(("=X= %s: no return expected, nothing will be returned", func));
+    return;
+  }
+
   int count = hlist_size(list);
   if (count <= 0) {
-    GLOG(("=X= %s: hlist is empty, nothing to return", func));
-    return 0;
+    GLOG(("=X= %s: hlist is empty, returning nothing", func));
+    return;
   }
 
-  GLOG(("=X= %s: returning %d values", func, count));
-  EXTEND(SP, count);
-
-  int num = 0;
-  HIter hiter;
-  for (hiter_reset(&hiter, list);
-       hiter_more(&hiter);
-       hiter_next(&hiter)) {
-    HNode* node = hiter_fetch(&hiter);
-    ++num;
-
-    /* TODO: This can probably be optimised A LOT*/
-    const char* s = node->name + (canonical && node->name[0] == ':');
-    GLOG(("=X= %s: returning %2d - str [%s]", func, num, s));
-    PUSHs(sv_2mortal(newSVpv(s, 0)));
+  if (want == G_SCALAR) {
+    GLOG(("=X= %s: returning number of elements", func));
+    EXTEND(SP, 1);
+    PUSHs(sv_2mortal(newSViv(count)));
+    PUTBACK;
   }
 
-  PUTBACK;
-  return count;
+  if (want == G_ARRAY) {
+    GLOG(("=X= %s: returning as %d elements", func, count));
+    EXTEND(SP, count);
+
+    int num = 0;
+    HIter hiter;
+    for (hiter_reset(&hiter, list);
+         hiter_more(&hiter);
+         hiter_next(&hiter)) {
+      HNode* node = hiter_fetch(&hiter);
+      ++num;
+
+      const char* s = node->name;
+      GLOG(("=X= %s: returning %2d - str [%s]", func, num, s));
+      PUSHs(sv_2mortal(newSVpv(s, 0)));
+    }
+    PUTBACK;
+  }
 }
 
 /*
  * Given an SList, return all of its nodes to Perl.
  */
-static int return_slist(pTHX_   SList* list, const char* func) {
+static void return_slist(pTHX_   SList* list, const char* func, int want) {
 
   dSP;
 
+  if (want == G_VOID) {
+    GLOG(("=X= %s: no return expected, nothing will be returned", func));
+    return;
+  }
+
   int count = slist_size(list);
   if (count <= 0) {
-    GLOG(("=X= %s: slist is empty, nothing to return", func));
-    return 0;
+    if (want == G_ARRAY) {
+      GLOG(("=X= %s: slist is empty, wantarray => 0", func));
+      EXTEND(SP, 1);
+      PUSHs(sv_2mortal(newSViv(0)));
+      PUTBACK;
+    } else {
+      GLOG(("=X= %s: slist is empty, returning nothing", func));
+    }
+    return;
   }
 
   GLOG(("=X= %s: returning %d values", func, count));
-  EXTEND(SP, count);
 
-  int num = 0;
-  SIter siter;
-  for (siter_reset(&siter, list);
-       siter_more(&siter);
-       siter_next(&siter)) {
-    SNode* node = siter_fetch(&siter);
-    ++num;
+  if (want == G_SCALAR) {
+    GLOG(("=X= %s: returning as single string", func));
 
-    /* TODO: This can probably be optimised A LOT*/
-    switch (node->type) {
-    case SNODE_TYPE_STR:
-      GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->data.gstr.str));
-      PUSHs(sv_2mortal(newSVpv(node->data.gstr.str, node->data.gstr.ulen - 1)));
-      break;
+    char ret[1024]; // TODO
+    int rpos = 0;
+    int num = 0;
+    SIter siter;
+    for (siter_reset(&siter, list);
+         siter_more(&siter);
+         siter_next(&siter)) {
+      SNode* node = siter_fetch(&siter);
+      ++num;
 
-    case SNODE_TYPE_OBJ:
-      GLOG(("=X= %s: %2d - returning data [%p]", func, num, node->data));
-      // TODO: PUSHs(sv_2mortal(newSVpv(node->data.gstr.str, 0)));
-      PUSHs(sv_2mortal(newSVpv("gonzo", 0)));
-      break;
+      switch (node->type) {
+      case SNODE_TYPE_STR:
+        GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->data.gstr.str));
+        if (rpos > 0) {
+          ret[rpos++] = ',';
+          ret[rpos++] = ' ';
+        }
+        memcpy(ret + rpos, node->data.gstr.str, node->data.gstr.ulen - 1);
+        rpos += node->data.gstr.ulen - 1;
+        break;
+
+      case SNODE_TYPE_OBJ:
+        break;
+      }
+      ret[rpos] = '\0';
     }
+
+    EXTEND(SP, 1);
+    PUSHs(sv_2mortal(newSVpv(ret, rpos)));
+    PUTBACK;
   }
 
-  PUTBACK;
-  return count;
+  if (want == G_ARRAY) {
+    GLOG(("=X= %s: returning as %d elements", func, count));
+    EXTEND(SP, count);
+    int num = 0;
+    SIter siter;
+    for (siter_reset(&siter, list);
+         siter_more(&siter);
+         siter_next(&siter)) {
+      SNode* node = siter_fetch(&siter);
+      ++num;
+
+    /* TODO: This can probably be optimised A LOT*/
+      switch (node->type) {
+      case SNODE_TYPE_STR:
+        GLOG(("=X= %s: returning %2d - str [%s]", func, num, node->data.gstr.str));
+        PUSHs(sv_2mortal(newSVpv(node->data.gstr.str, node->data.gstr.ulen - 1)));
+        break;
+
+      case SNODE_TYPE_OBJ:
+        break;
+      }
+    }
+    PUTBACK;
+  }
 }
 
 
@@ -146,21 +241,6 @@ hhf_hlist_create()
 
 
 #
-# Destroy an existing HList.
-#
-void
-hhf_hlist_destroy(unsigned long nh)
-
-  PREINIT:
-    HList* h = 0;
-
-  CODE:
-    h = (HList*) nh;
-    GLOG(("=X= HLIST_DESTROY(%p|%d)", h, hlist_size(h)));
-    hlist_destroy(h);
-
-
-#
 # Clone an existing HList.
 #
 void*
@@ -179,18 +259,34 @@ hhf_hlist_clone(unsigned long nh)
   OUTPUT: RETVAL
 
 
+
+#################################################################
+
 #
-# Clear an existing HList, leaving it as freshly created.
+# Object's destructor, called automatically
 #
 void
-hhf_hlist_clear(unsigned long nh)
-
+DESTROY(SV* self, ...)
   PREINIT:
     HList* h = 0;
 
   CODE:
-    GLOG(("=X= HLIST_CLEAR(%p|%d)", h, hlist_size(h)));
-    h = (HList*) nh;
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ destroy(%p|%d)", h, hlist_size(h)));
+    hlist_destroy(h);
+
+
+#
+# Clear object, leaving it as freshly created.
+#
+void
+clear(SV* self, ...)
+  PREINIT:
+    HList* h = 0;
+
+  CODE:
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ clear(%p|%d)", h, hlist_size(h)));
     hlist_clear(h);
 
 
@@ -198,185 +294,56 @@ hhf_hlist_clear(unsigned long nh)
 # Get all the keys in an existing HList.
 #
 void
-hhf_hlist_header_names(unsigned long nh, int canonical)
-
+_header_keys(SV* self)
   PREINIT:
     HList* h = 0;
 
   PPCODE:
-    h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_NAMES(%p|%d)", h, hlist_size(h)));
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ _header_keys(%p|%d), want %d",
+          h, hlist_size(h), GIMME_V));
 
     PUTBACK;
-    return_hlist(aTHX_   h, "header_names", canonical);
+    return_hlist(aTHX_   h, "_header_keys", GIMME_V);
     SPAGAIN;
 
 
 #
-# Get all the values for a given key in an existing HList.
+# init_header
 #
 void
-hhf_hlist_header_get(unsigned long nh, int translate_underscore, char* name)
-
+init_header(SV* self, ...)
   PREINIT:
+    int argc = 0;
     HList* h = 0;
-    HNode* s = 0;
+    HNode* n = 0;
+    int    ctrans = 0;
+    SV*    pkey;
+    SV*    pval;
+    STRLEN len;
+    char*  ckey;
 
-  PPCODE:
-    h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_GET(%p|%d, %d, %s)",
-          h, hlist_size(h), translate_underscore, name));
-
-    s = hlist_get_header(h, translate_underscore,
-                         s, name);
-    if (!s) {
-      XSRETURN_EMPTY;
+  CODE:
+    argc = items - 1;
+    if (argc != 2) {
+      croak("init_header needs two arguments");
     }
 
-    PUTBACK;
-    return_slist(aTHX_   s->slist, "header_get");
-    SPAGAIN;
+    h = fetch_hlist(aTHX_  self);
+    ctrans = fetch_translate(aTHX_ self);
+    GLOG(("=X= @@@ init_header(%p|%d), %d params, want %d, trans %d",
+          h, hlist_size(h), argc, GIMME_V, ctrans));
 
+    pkey = ST(1);
+    ckey = SvPV(pkey, len);
+    pval = ST(2);
 
-#
-# Add to or overwrite the values for a given key in an existing HList.
-#
-# new_only: fail if this key already had values
-# keep_previous: keep any existing previous values for the key
-# want_answer: return previously existing values
-#
-void
-hhf_hlist_header_set(unsigned long nh, int translate_underscore, int new_only, int keep_previous, int want_answer, char* name, SV* val)
-
-  PREINIT:
-    HList* h = 0;
-    HNode* s = 0;
-    AV* arr = 0;
-    int j;
-    int added = 0;
-
-  PPCODE:
-    h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_SET(%p|%d, %d, %d, %d, %s, %p)",
-          h, hlist_size(h), translate_underscore, new_only, keep_previous, name, val));
-
-    /* We look for the current values for the header. */
-    s = hlist_get_header(h, translate_underscore,
-                         s, name);
-    int count = s ? slist_size(s->slist) : 0;
-    if (count > 0) {
-      if (new_only) {
-        /* header should not have existed before */
-        GLOG(("=X= header_set: tried to init already-existing header, bye"));
-        XSRETURN_EMPTY;
-      }
-
-      if (want_answer) {
-        /* Put current values as the return for the function. */
-        PUTBACK;
-        return_slist(aTHX_   s->slist, "header_set");
-        SPAGAIN;
-      }
-
-      if (keep_previous) {
-      } else {
-        /* Make a shallow copy of the current value */
-        /* GLOG(("=X= header_set: making a shallow copy")); */
-        /* t = slist_clone(s); */
-
-        /* Erase what is already there for this header */
-        slist_clear(s->slist);
-        GLOG(("=X= header_set: cleared key [%s]", name));
-      }
-    }
-
-    if (val) {
-
-      /* Scalar? Just convert it to string. */
-      if (SvIOK(val) || SvNOK(val) || SvPOK(val)) {
-        STRLEN slen;
-        const char* elem = SvPV(val, slen);
-        s = hlist_add_header(h, translate_underscore,
-                             s, name, elem, 0);
-        ++added;
-        GLOG(("=X= header_set: added single value [%s]", elem));
-      }
-
-      /* Reference? */
-      if (SvROK(val)) {
-       do {
-        GLOG(("=X= header_set: is a ref"));
-        SV* deref = SvRV(val);
-
-        if (SvOBJECT(deref)) {
-          GLOG(("=X= header_set: is an object"));
-          s = hlist_add_header(h, translate_underscore,
-                               s, name, 0, deref);
-          ++added;
-          GLOG(("=X= header_set: added data value [%p]", deref));
-          break;
-        }
-
-        if (SvTYPE(deref) == SVt_PVAV) {
-          GLOG(("=X= header_set: is an arrayref"));
-          arr = (AV*) SvRV(val);
-
-          /* Add each element in val as a value for name. */
-          count = av_len(arr) + 1;
-          GLOG(("=X= header_set: array has %d elementds", count));
-          for (j = 0; j < count; ++j) {
-            SV** svp = av_fetch(arr, j, 0);
-            if (SvIOK(*svp) || SvNOK(*svp) || SvPOK(*svp)) {
-              STRLEN slen;
-              const char* elem = SvPV(*svp, slen);
-              s = hlist_add_header(h, translate_underscore,
-                                   s, name, elem, 0);
-              ++added;
-              GLOG(("=X= header_set: added str value %d [%s]", j, elem));
-            }
-          }
-          break;
-        }
-       } while (0);
-      }
-    }
-
-    /* Erase empty header */
-    if (!added) {
-      s = hlist_del_header(h, translate_underscore,
-                           0, name);
-    }
-
-#
-# Remove a given key (and all its values) in an existing HList.
-#
-void
-hhf_hlist_header_remove(unsigned long nh, int translate_underscore, char* name)
-
-  PREINIT:
-    HList* h = 0;
-    HNode* s = 0;
-
-  PPCODE:
-    h = (HList*) nh;
-    GLOG(("=X= HLIST_HEADER_REMOVE(%p|%d, %d, %s)",
-          h, hlist_size(h), translate_underscore, name));
-
-    /* We look for the current values for the header and keep a reference to them */
-    s = hlist_get_header(h, translate_underscore,
-                         s, name);
-    int count = s ? slist_size(s->slist) : 0;
-    if (count) {
+    n = hlist_get_header(h, ctrans, n, ckey);
+    if (!n) {
       PUTBACK;
-      return_slist(aTHX_   s->slist, "header_remove");
+      n = set_value(aTHX_  h, n, ctrans, ckey, pval);
       SPAGAIN;
-
-      /* Erase what is already there for this header */
-      s = hlist_del_header(h, translate_underscore,
-                           0, name);
-      GLOG(("=X= header_remove: deleted key [%s]", name));
     }
-
 
 #
 # push_header
@@ -384,33 +351,183 @@ hhf_hlist_header_remove(unsigned long nh, int translate_underscore, char* name)
 void
 push_header(SV* self, ...)
   PREINIT:
+    int argc = 0;
     HList* h = 0;
     HNode* n = 0;
+    int    ctrans = 0;
     int    j = 0;
     SV*    pkey;
     SV*    pval;
     STRLEN len;
     char*  ckey;
-    char*  cval;
 
   CODE:
-    if (items % 2 == 0) {
+    argc = items - 1;
+    if (argc % 2 != 0) {
       croak("push_header needs an even number of arguments");
     }
 
     h = fetch_hlist(aTHX_  self);
-    GLOG(("=X= HLIST_PUSH_HEADER(%p|%d), %d params", h, hlist_size(h), items));
+    ctrans = fetch_translate(aTHX_ self);
+    GLOG(("=X= @@@ push_header(%p|%d), %d params, want %d, trans %d",
+          h, hlist_size(h), argc, GIMME_V, ctrans));
 
-    for (j = 0; j < items; ) {
-        pkey = ST(++j);
-        if (j > items) {
+    for (j = 1; j <= argc; ) {
+        if (j > argc) {
           break;
         }
-        pval = ST(++j);
-        if (j > items) {
+        pkey = ST(j++);
+
+        if (j > argc) {
           break;
         }
+        pval = ST(j++);
 
         ckey = SvPV(pkey, len);
-        n = add_scalar(aTHX_  h, n, ckey, pval);
+        PUTBACK;
+        n = set_value(aTHX_  h, n, ctrans, ckey, pval);
+        SPAGAIN;
+    }
+
+
+#
+# header
+#
+void
+header(SV* self, ...)
+  PREINIT:
+    int argc = 0;
+    HList* h = 0;
+    HNode* n = 0;
+    int    ctrans = 0;
+    int    j = 0;
+    SV*    pkey;
+    SV*    pval;
+    STRLEN len;
+    char*  ckey;
+    HList* seen = 0;
+
+  PPCODE:
+    argc = items - 1;
+    h = fetch_hlist(aTHX_  self);
+    ctrans = fetch_translate(aTHX_ self);
+    GLOG(("=X= @@@ header(%p|%d), %d params, want %d, trans %d",
+          h, hlist_size(h), argc, GIMME_V, ctrans));
+
+    do {
+      if (argc == 0) {
+        croak("init_header called with no arguments");
+        break;
+      }
+
+      if (argc == 1) {
+        pkey = ST(1);
+        ckey = SvPV(pkey, len);
+        n = hlist_get_header(h, ctrans, n, ckey);
+        if (n && slist_size(n->slist) > 0) {
+          PUTBACK;
+          return_slist(aTHX_   n->slist, "header1", GIMME_V);
+          SPAGAIN;
+        }
+        break;
+      }
+
+      if (argc % 2 != 0) {
+        croak("init_header needs one or an even number of arguments");
+        break;
+      }
+
+      seen = hlist_create();
+      for (j = 1; j <= argc; ) {
+          if (j > argc) {
+            break;
+          }
+          pkey = ST(j++);
+
+          if (j > argc) {
+            break;
+          }
+          pval = ST(j++);
+
+          ckey = SvPV(pkey, len);
+          int clear = 0;
+          if (! hlist_get_header(seen, ctrans, 0, ckey)) {
+            clear = 1;
+            hlist_add_header(seen, ctrans, 0, ckey, 0, 0);
+          }
+
+          n = hlist_get_header(h, ctrans, n, ckey);
+          if (n) {
+            if (j > argc && slist_size(n->slist) > 0) {
+              /* Last value, return its current contents */
+              PUTBACK;
+              return_slist(aTHX_   n->slist, "header2", GIMME_V);
+              SPAGAIN;
+            }
+            if (clear) {
+              slist_clear(n->slist);
+            }
+          }
+
+          PUTBACK;
+          n = set_value(aTHX_  h, n, ctrans, ckey, pval);
+          SPAGAIN;
+          n = 0;
+      }
+      hlist_destroy(seen);
+      break;
+    } while (0);
+
+
+#
+# remove_header
+#
+void
+remove_header(SV* self, ...)
+  PREINIT:
+    int argc = 0;
+    HList* h = 0;
+    HNode* n = 0;
+    int    ctrans = 0;
+    int    j = 0;
+    SV*    pkey;
+    STRLEN len;
+    char*  ckey;
+    int    size = 0;
+    int    total = 0;
+
+  PPCODE:
+    argc = items - 1;
+    h = fetch_hlist(aTHX_  self);
+    ctrans = fetch_translate(aTHX_ self);
+    GLOG(("=X= @@@ remove_header(%p|%d), %d params, want %d, trans %d",
+          h, hlist_size(h), argc, GIMME_V, ctrans));
+
+    for (j = 1; j <= argc; ++j) {
+      pkey = ST(j);
+      ckey = SvPV(pkey, len);
+
+      n = hlist_get_header(h, ctrans, n, ckey);
+      if (! n) {
+        continue;
+      }
+
+      size = slist_size(n->slist);
+      if (size > 0) {
+        total += size;
+        if (GIMME_V == G_ARRAY) {
+          PUTBACK;
+          return_slist(aTHX_   n->slist, "remove_header", G_ARRAY);
+          SPAGAIN;
+        }
+      }
+
+      n = hlist_del_header(h, ctrans, 0, ckey);
+      GLOG(("=X= remove_header: deleted key [%s]", ckey));
+    }
+
+    if (GIMME_V == G_SCALAR) {
+      GLOG(("=X= remove_header: returning count %d", total));
+      EXTEND(SP, 1);
+      PUSHs(sv_2mortal(newSViv(total)));
     }

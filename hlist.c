@@ -500,7 +500,8 @@ static HNode* hlist_lookup(HList* hlist, int translate_underscore,
     *hprv = q;
   }
 
-  GLOG(("=C= lookup header [%s] -> pos %d - %p", name, pos, h));
+  GLOG(("=C= lookup header [%s|%s] -> pos %d - %p",
+        name, canonical, pos, h));
   if (h) {
     // If it already exists, we won't need this
     GMEM_DEL(canonical, char*, l);
