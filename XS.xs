@@ -390,24 +390,3 @@ _header_set(SV *self, SV *field_name, SV *val)
         } else {
             set_header(aTHX_ (HV *)SvRV(self), field, len, val);
         }
-
-void
-_header_push(SV *self, SV *field_name, SV *val)
-    PREINIT:
-        char   *field;
-        STRLEN len;
-    PPCODE:
-        field = SvPV(field_name, len);
-
-        handle_standard_case(aTHX_ field, len);
-
-        /* we are putting the decremented (with the number of
-        input parameters) SP back in the THX */
-        PUTBACK;
-
-        put_header_value_on_perl_stack(aTHX_ self, field, len);
-
-        /* we are setting the local SP variable to the value in THX */
-        SPAGAIN;
-
-        __push_header(aTHX_ (HV *) SvRV(self), field, len, newSVsv(val));
