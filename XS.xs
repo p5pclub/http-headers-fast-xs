@@ -140,15 +140,15 @@ void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
     hv_store(self, field, len, newSVsv(val), 0);
 }
 
-void put_array_values_on_perl_stack(pTHX_ AV *array) {
+int put_array_values_on_perl_stack(pTHX_ AV *array) {
     dSP;
-    int i, top_index;
+    int i, count;
     SV  **array_elem;
 
-    top_index = av_len(array);
-    EXTEND(SP, top_index + 1);
+    count = av_len(array) + 1;
+    EXTEND(SP, count);
 
-    for (i = 0; i <= top_index; i++) {
+    for (i = 0; i < count; i++) {
         array_elem = av_fetch(array, i, 0);
 
         if (array_elem == NULL)
@@ -156,31 +156,30 @@ void put_array_values_on_perl_stack(pTHX_ AV *array) {
 
         PUSHs(sv_2mortal(newSVsv(*array_elem)));
     }
+    return count;
 }
 
 /* Returns if we store that field name or not */
-bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
+int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
-    SV *value;
+    int count;
+    SV  *value;
 
     value = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
 
     if (value == NULL)
-        return false;
+        return 0;
 
     if ( SvROK(value) && SvTYPE( SvRV(value) ) == SVt_PVAV ) {
         /* If the value is an array, put all the values of the array on stack.
          * This will return @$h to perl */
-        put_array_values_on_perl_stack((AV *) SvRV(value));
+        count = put_array_values_on_perl_stack((AV *) SvRV(value));
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
-        EXTEND(SP, 1);
         PUSHs(sv_2mortal(newSVsv(value)));
+        count = 1;
     }
-
-    /* put the local SP in THX -> SP was EXTENDED */
-    PUTBACK;
-    return true;
+    return count;
 }
 
 SV* join(pTHX_ char *sep, AV *values) {
@@ -339,40 +338,38 @@ header(SV *self, ...)
             XSRETURN(1);
         } else if (GIMME_V == G_ARRAY) {
             /* return @old */
-            put_array_values_on_perl_stack((AV *) SvRV(value));
+            XSRETURN( put_array_values_on_perl_stack((AV *) SvRV(value)) );
         } else {
             /* return join( ', ', @old ) */
             value = join(aTHX_ ", ", (AV *) SvRV(value));
             PUSHs(value);
+            XSRETURN(1);
         }
 
 void
 _header_get( SV *self, SV *field_name, ... )
     PREINIT:
+        bool   skip_standardize;
         char   *field;
         STRLEN len;
-        bool   skip_standardize;
     PPCODE:
         field = SvPV(field_name, len);
-        skip_standardize = ( items == 3 ) && SvTRUE(ST(3));
+
+        skip_standardize = (items == 3) && SvTRUE(ST(3));
         if (!skip_standardize)
             handle_standard_case(aTHX_ field, len);
 
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
-        put_header_value_on_perl_stack(aTHX_ self, field, len);
-
-        /* we are setting the local SP variable to the value in THX(it was changed inside the previous function call) */
-        SPAGAIN;
-
+        XSRETURN( put_header_value_on_perl_stack(aTHX_ self, field, len) );
 
 void
 _header_set(SV *self, SV *field_name, SV *val)
     PREINIT:
         char   *field;
+        int    count;
         STRLEN len;
-        bool   found;
     PPCODE:
         field = SvPV(field_name, len);
 
@@ -381,13 +378,15 @@ _header_set(SV *self, SV *field_name, SV *val)
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
 
-        found = put_header_value_on_perl_stack(aTHX_ self, field, len);
+        count = put_header_value_on_perl_stack(aTHX_ self, field, len);
 
         /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
 
-        if (!SvOK(val) && found) {
+        if (!SvOK(val) && count) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
             set_header_value(aTHX_ (HV *)SvRV(self), field, len, val);
         }
+
+        XSRETURN(count);
