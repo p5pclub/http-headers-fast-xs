@@ -425,9 +425,7 @@ init_header(SV* self, ...)
 
     n = hlist_get_header(h, ctrans, n, ckey);
     if (!n) {
-      PUTBACK;
       n = set_value(aTHX_  h, ctrans, n, ckey, pval);
-      SPAGAIN;
     }
 
 #
@@ -469,9 +467,7 @@ push_header(SV* self, ...)
         pval = ST(j++);
 
         ckey = SvPV(pkey, len);
-        PUTBACK;
         n = set_value(aTHX_  h, ctrans, n, ckey, pval);
-        SPAGAIN;
     }
 
 
@@ -554,9 +550,7 @@ header(SV* self, ...)
             }
           }
 
-          PUTBACK;
           n = set_value(aTHX_  h, ctrans, n, ckey, pval);
-          SPAGAIN;
           n = 0;
       }
       hlist_destroy(seen);
