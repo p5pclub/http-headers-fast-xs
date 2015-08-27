@@ -85,9 +85,8 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     SV **h;
 
     /* check if field has a value */
-    if ( !hv_exists(self, field, len) ) {
+    if ( !hv_exists(self, field, len) )
         return NULL;
-    }
 
     h = hv_fetch(self, field, len, 0);
     if (h == NULL)
@@ -141,12 +140,28 @@ void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
     hv_store(self, field, len, newSVsv(val), 0);
 }
 
+void put_array_values_on_perl_stack(pTHX_ AV *array) {
+    dSP;
+    int i, top_index;
+    SV  **array_elem;
+
+    top_index = av_len(array);
+    EXTEND(SP, top_index + 1);
+
+    for (i = 0; i <= top_index; i++) {
+        array_elem = av_fetch(array, i, 0);
+
+        if (array_elem == NULL)
+            croak("av_fetch() failed. This should not happen.");
+
+        PUSHs(sv_2mortal(newSVsv(*array_elem)));
+    }
+}
+
 /* Returns if we store that field name or not */
 bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
-    AV   *val_array;
-    SV   *value, **val_array_elem;
-    int  top_index, i;
+    SV *value;
 
     value = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
 
@@ -156,18 +171,7 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     if ( SvROK(value) && SvTYPE( SvRV(value) ) == SVt_PVAV ) {
         /* If the value is an array, put all the values of the array on stack.
          * This will return @$h to perl */
-        val_array = (AV *) SvRV(value);
-        top_index = av_len(val_array);
-        EXTEND(SP, top_index);
-
-        for (i = 0; i <= top_index; i++) {
-            val_array_elem = av_fetch(val_array, i, 0);
-
-            if (val_array_elem == NULL)
-                croak("av_fetch() failed. This should not happen.");
-
-            PUSHs(sv_2mortal(newSVsv(*val_array_elem)));
-        }
+        put_array_values_on_perl_stack((AV *) SvRV(value));
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
         EXTEND(SP, 1);
@@ -255,10 +259,9 @@ void
 header(SV *self, ...)
     PREINIT:
         char   *field, *field_lc;
-        int    arg, i, top_index;
+        int    arg, i;
         STRLEN len;
-        AV     *val_array;
-        SV     *args[items], *value, **val_array_elem;
+        SV     *args[items], *value;
         HV     *seen, *self_hash;
     PPCODE:
         if (items <= 1)
@@ -334,20 +337,9 @@ header(SV *self, ...)
             PUSHs(value);
             PUTBACK;
             XSRETURN(1);
-        }
-
-        /* return @old */
-        val_array = (AV *) SvRV(value);
-        top_index = av_len(val_array);
-        if (GIMME_V == G_ARRAY) {
-            for (i = 0; i <= top_index; i++) {
-                val_array_elem = av_fetch(val_array, i, 0);
-                if (val_array_elem == NULL)
-                    croak("av_fetch() failed. This should not happen.");
-                PUSHs(*val_array_elem);
-            }
-            PUTBACK;
-            XSRETURN(top_index + 1);
+        } else if (GIMME_V == G_ARRAY) {
+            /* return @old */
+            put_array_values_on_perl_stack((AV *) SvRV(value));
         } else {
             /* return join( ', ', @old ) */
             value = join(aTHX_ ", ", (AV *) SvRV(value));
