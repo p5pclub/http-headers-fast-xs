@@ -50,6 +50,8 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::content_type_charset;
 *HTTP::Headers::Fast::referer =
     *HTTP::Headers::Fast::XS::referer;
+*HTTP::Headers::Fast::_basic_auth =
+    *HTTP::Headers::Fast::XS::_basic_auth;
 
 {
     no warnings qw<redefine once>;
@@ -57,7 +59,7 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
       (my $meth = $key) =~ s/-/_/g;
       no strict 'refs';
       *{ "HTTP::Headers::Fast::$meth" } = sub {
-          print("*** GONZO: method [$meth]\n");
+          # print STDERR "*** GONZO: method [$meth]\n";
           (shift->header($key, @_))[0];
       };
     }
@@ -281,6 +283,25 @@ sub referer {
 }
 
 *HTTP::Headers::Fast::referrer = \&referer;
+
+sub _basic_auth {
+    require MIME::Base64;
+    my ( $self, $h, $user, $passwd ) = @_;
+    my ($old) = $self->header($h);
+    if ( defined $user ) {
+        Carp::croak("Basic authorization user name can't contain ':'")
+          if $user =~ /:/;
+        $passwd = '' unless defined $passwd;
+        $self->header(
+            $h => 'Basic ' . MIME::Base64::encode( "$user:$passwd", '' ) );
+    }
+    if ( defined $old && $old =~ s/^\s*Basic\s+// ) {
+        my $val = MIME::Base64::decode($old);
+        return $val unless wantarray;
+        return split( /:/, $val, 2 );
+    }
+    return;
+}
 
 1;
 
