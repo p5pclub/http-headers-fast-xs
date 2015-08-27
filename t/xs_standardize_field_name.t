@@ -12,9 +12,15 @@ can_ok( HTTP::Headers::Fast::XS::, '_standardize_field_name' );
 {
     local $HTTP::Headers::Fast::TRANSLATE_UNDERSCORE = 1;
     is(
-        HTTP::Headers::Fast::XS::_standardize_field_name('hello_world_'),
+        HTTP::Headers::Fast::XS::_standardize_field_name('Hello_World_'),
         'hello-world-',
-        'All underscores are converted to dashes',
+        'Lowercased; underscores converted to dashes',
+    );
+
+    is(
+        $HTTP::Headers::Fast::standard_case{'hello-world-'},
+        'Hello-World-',
+        'Set up standard_case in original header value correctly',
     );
 }
 
@@ -23,7 +29,7 @@ can_ok( HTTP::Headers::Fast::XS::, '_standardize_field_name' );
     is(
         HTTP::Headers::Fast::XS::_standardize_field_name('hello_world_'),
         'hello_world_',
-        'Respect $TRANSLATE_UNDERCORE global',
+        'Respect $TRANSLATE_UNDERSCORE global',
     );
 }
 
