@@ -30,14 +30,14 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::remove_content_headers;
 *HTTP::Headers::Fast::_header_keys =
     *HTTP::Headers::Fast::XS::_header_keys;
-*HTTP::Headers::Fast::_sorted_field_names =
-    *HTTP::Headers::Fast::XS::_sorted_field_names;
 *HTTP::Headers::Fast::header_field_names =
     *HTTP::Headers::Fast::XS::header_field_names;
 *HTTP::Headers::Fast::scan =
     *HTTP::Headers::Fast::XS::scan;
 *HTTP::Headers::Fast::_as_string =
     *HTTP::Headers::Fast::XS::_as_string;
+*HTTP::Headers::Fast::as_string =
+    *HTTP::Headers::Fast::XS::as_string;
 *HTTP::Headers::Fast::as_string_without_sort =
     *HTTP::Headers::Fast::XS::as_string_without_sort;
 *HTTP::Headers::Fast::clone =
@@ -128,28 +128,26 @@ sub remove_content_headers {
     $c;
 }
 
-sub _sorted_field_names {
-    my ($self) = @_;
+sub _sort_field_names {
+    my $names = shift;
 
-    my @sorted = sort  {
-        ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
-            || $a cmp $b
-    } $self->_header_keys();
-
-    return \@sorted;
+    return [ sort  { ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
+                         || $a cmp $b
+             } @$names ];
 }
 
 sub header_field_names {
     my $self = shift;
-    return map $standard_case{$_} || $_, @{ $self->_sorted_field_names() }
-      if wantarray;
     my @names = $self->_header_keys();
+    return map $standard_case{$_} || $_, @{ _sort_field_names(\@names) }
+      if wantarray;
     return @names // 0;
 }
 
 sub scan {
     my ( $self, $sub ) = @_;
-    for my $key (@{ $self->_sorted_field_names() }) {
+    my @names = $self->_header_keys();
+    for my $key (@{ _sort_field_names(\@names) }) {
         next if substr($key, 0, 1) eq '_';
         my @vals = $self->header($key);
         for my $val (@vals) {
@@ -188,6 +186,14 @@ sub _as_string {
     }
 
     join( $endl, @result, '' );
+}
+
+sub as_string {
+    my ( $self, $endl ) = @_;
+    $endl = "\n" unless defined $endl;
+
+    my @names = $self->_header_keys();
+    $self->_as_string($endl, _sort_field_names(\@names));
 }
 
 sub as_string_without_sort {
