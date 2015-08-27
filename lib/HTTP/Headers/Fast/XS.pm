@@ -50,6 +50,9 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::content_type_charset;
 *HTTP::Headers::Fast::referer =
     *HTTP::Headers::Fast::XS::referer;
+*HTTP::Headers::Fast::referrer =
+    *HTTP::Headers::Fast::XS::referer;
+
 *HTTP::Headers::Fast::_basic_auth =
     *HTTP::Headers::Fast::XS::_basic_auth;
 
@@ -199,7 +202,7 @@ sub _as_string {
 sub as_string_without_sort {
     my ( $self, $endl ) = @_;
     $endl = "\n" unless defined $endl;
-    $self->_as_string($endl, $self->_header_keys());
+    $self->_as_string($endl, [$self->_header_keys()]);
 }
 
 sub clone {
@@ -236,6 +239,55 @@ sub content_type {
         $_ = lc($_);
     }
     wantarray ? @ct : $ct[0];
+}
+
+# This is copied here because it is not a method
+sub _split_header_words
+{
+    my(@val) = @_;
+    my @res;
+    for (@val) {
+	my @cur;
+	while (length) {
+	    if (s/^\s*(=*[^\s=;,]+)//) {  # 'token' or parameter 'attribute'
+		push(@cur, $1);
+		# a quoted value
+		if (s/^\s*=\s*\"([^\"\\]*(?:\\.[^\"\\]*)*)\"//) {
+		    my $val = $1;
+		    $val =~ s/\\(.)/$1/g;
+		    push(@cur, $val);
+		# some unquoted value
+		}
+		elsif (s/^\s*=\s*([^;,\s]*)//) {
+		    my $val = $1;
+		    $val =~ s/\s+$//;
+		    push(@cur, $val);
+		# no value, a lone token
+		}
+		else {
+		    push(@cur, undef);
+		}
+	    }
+	    elsif (s/^\s*,//) {
+		push(@res, [@cur]) if @cur;
+		@cur = ();
+	    }
+	    elsif (s/^\s*;// || s/^\s+//) {
+		# continue
+	    }
+	    else {
+		die "This should not happen: '$_'";
+	    }
+	}
+	push(@res, \@cur) if @cur;
+    }
+
+    for my $arr (@res) {
+	for (my $i = @$arr - 2; $i >= 0; $i -= 2) {
+	    $arr->[$i] = lc($arr->[$i]);
+	}
+    }
+    return @res;
 }
 
 sub content_type_charset {
@@ -281,8 +333,6 @@ sub referer {
     }
     ( $self->header( 'Referer', @_ ) )[0];
 }
-
-*HTTP::Headers::Fast::referrer = \&referer;
 
 sub _basic_auth {
     require MIME::Base64;

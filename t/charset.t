@@ -3,7 +3,7 @@ use strict;
 use Test::More;
 plan tests => 2;
 
-use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
 
 my $h = HTTP::Headers::Fast->new;
 is($h->content_type_charset, undef);

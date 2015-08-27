@@ -1,4 +1,4 @@
 use strict;
 use Test::More tests => 1;
 
-BEGIN { use_ok 'HTTP::Headers::Fast' }
+BEGIN { use_ok 'HTTP::Headers::Fast::XS' }
