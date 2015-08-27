@@ -68,10 +68,10 @@ static HNode* set_value(pTHX_  HList* h, int trans, HNode* n, const char* ckey, 
 	SV* deref = SvRV(pval);
 
 	if (SvTYPE(deref) != SVt_PVAV)
-		croak( "Value for key %s must be string or arrayref of strings", ckey );
+    return set_scalar( aTHX_  h, trans, n, ckey, pval);
 
-	AV* array = (AV*) deref;
-	return set_array(aTHX_  h, trans, n, ckey, array);
+  AV* array = (AV*) deref;
+  return set_array(aTHX_  h, trans, n, ckey, array);
 }
 
 /*
@@ -159,6 +159,18 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
       SNode* node = siter_fetch(&siter);
       ++num;
 
+      /* handle returning one value,
+         useful when storing an object
+      */
+      if ( count == 1 ) {
+        EXTEND( SP, 1 );
+        PUSHs( (SV*)node->obj );
+        break;
+      }
+
+      /* concatenate values
+         useful for full header strings
+      */
       STRLEN len;
       char* str = SvPV( (SV*)node->obj, len );
       GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
@@ -171,10 +183,14 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
       rpos += len;
 
     }
-    ret[rpos] = '\0';
 
-    EXTEND(SP, 1);
-    PUSHs(sv_2mortal(newSVpv(ret, rpos)));
+    /* if we concatenated, return it */
+    if ( count > 1 ) {
+      ret[rpos] = '\0';
+      EXTEND(SP, 1);
+      PUSHs(sv_2mortal(newSVpv(ret, rpos)));
+    }
+
     PUTBACK;
   }
 
@@ -189,9 +205,9 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
       SNode* node = siter_fetch(&siter);
       ++num;
 
-    /* TODO: This can probably be optimised A LOT*/
       PUSHs( (SV*)node->obj );
     }
+
     PUTBACK;
   }
 }
