@@ -276,23 +276,6 @@ new( SV* class, ... )
   OUTPUT: RETVAL
 
 #
-# Create a new HList.
-#
-void*
-hhf_hlist_create()
-
-  PREINIT:
-    HList* h = 0;
-
-  CODE:
-    h = hlist_create();
-    GLOG(("=X= HLIST_CREATE() => %p", h));
-    RETVAL = (void*) h;
-
-  OUTPUT: RETVAL
-
-
-#
 # Clone an existing HList.
 #
 void*
