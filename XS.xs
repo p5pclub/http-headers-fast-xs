@@ -260,7 +260,7 @@ void
 header(SV *self, ...)
     PREINIT:
         char   *field;
-        int    arg;
+        int    arg, count;
         STRLEN len;
         SV     *args[items], *value;
         HV     *seen, *self_hash;
@@ -330,16 +330,19 @@ header(SV *self, ...)
 
         if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV) {
             /* return $old[0] */
-            PUSHs(value);
-            PUTBACK;
+            PUSHs(sv_2mortal(value));
             XSRETURN(1);
         } else if (GIMME_V == G_ARRAY) {
             /* return @old */
-            XSRETURN( put_array_values_on_perl_stack((AV *) SvRV(value)) );
+            PUTBACK;
+            count = put_array_values_on_perl_stack((AV *) SvRV(value)); 
+            SPAGAIN;
+
+            XSRETURN(count);
         } else {
             /* return join( ', ', @old ) */
             value = join(aTHX_ ", ", (AV *) SvRV(value));
-            PUSHs(value);
+            PUSHs(sv_2mortal(value));
             XSRETURN(1);
         }
 

@@ -13,6 +13,7 @@ t/headers.t
 t/lazy_load_for_storable.t
 t/xs_header_get.t
 t/xs_header_set.t
+t/xs_memory_leak.t
 t/xs_standardize_field_name.t
 tools/benchmark.pl
 tools/dumbbenchmark.pl
