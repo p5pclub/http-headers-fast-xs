@@ -122,14 +122,6 @@ our %standard_case;
     }
 }
 
-sub new {
-    my ($class) = shift;
-    my $self = bless {}, $class;
-    $self->{hlist} = hhf_hlist_create();
-    $self->header(@_) if @_;    # set up initial headers
-    $self;
-}
-
 sub remove_content_headers {
     my $self = shift;
     my $c = ref($self)->new;

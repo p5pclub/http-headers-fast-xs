@@ -30,6 +30,7 @@ static HList* fetch_hlist(pTHX_  SV* self) {
 return h;
 }
 
+/* FIXME: don't send self */
 static int fetch_translate(pTHX_ SV* self) {
   dMY_CXT;
 
@@ -226,6 +227,53 @@ BOOT:
         0
     );
 }
+
+SV *
+new( SV* class, ... )
+  PREINIT:
+    int    j;
+    int    ctrans = 0;
+    HList* list = 0;
+    SV*    self = 0;
+    HV*    hash;
+    SV*    pkey;
+    SV*    pval;
+    char*  ckey;
+  CODE:
+    if ( ( items - 1 ) % 2 )
+        croak("Expecting a hash as input to constructor");
+
+    hash = newHV();
+    list = hlist_create();
+
+    if ( !list )
+      croak("Could not initialize HList list object");
+
+    SV** hlist_created = hv_store( hash, "hlist", strlen("hlist"), newSViv((IV)list), 0 );
+
+    if ( !hlist_created )
+      croak("We could not store value for 'hlist'. This should not happen.");
+
+    /* create the initial list */
+    /* FIXME: don't send self */
+    ctrans = fetch_translate(aTHX_ self);
+    for (j = 1; j < items; ) {
+        pkey = ST(j++);
+
+        /* did we reach the end by any chance? */
+        if (j == items) {
+          break;
+        }
+
+        pval = ST(j++);
+        ckey = SvPV_nolen(pkey);
+        set_value(aTHX_  list, ctrans, 0, ckey, pval);
+    }
+
+    self = newRV_noinc( (SV*)hash );
+    RETVAL = sv_bless( self, gv_stashpv( SvPV_nolen(class), 0 ) );
+
+  OUTPUT: RETVAL
 
 #
 # Create a new HList.
@@ -453,7 +501,7 @@ header(SV* self, ...)
 
     do {
       if (argc == 0) {
-        croak("init_header called with no arguments");
+        croak("header called with no arguments");
         break;
       }
 
