@@ -2,19 +2,13 @@ package HTTP::Headers::Fast::XS;
 use strict;
 use warnings;
 use XSLoader;
-use parent 'Exporter';
-use Data::Dumper qw( Dumper );    # really needed, not just for debugging
 
 our $VERSION = '0.11';
 
-require HTTP::Headers::Fast; # make sure it's loaded
-
+require HTTP::Headers::Fast;
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
-*HTTP::Headers::Fast::isa =
-    *HTTP::Headers::Fast::XS::isa;
-*HTTP::Headers::Fast::new =
-    *HTTP::Headers::Fast::XS::new;
+# Implemented in XS
 *HTTP::Headers::Fast::DESTROY =
     *HTTP::Headers::Fast::XS::DESTROY;
 *HTTP::Headers::Fast::header =
@@ -27,6 +21,11 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::init_header;
 *HTTP::Headers::Fast::remove_header =
     *HTTP::Headers::Fast::XS::remove_header;
+
+# Implemented in Pure-Perl
+# (candidates to move to XS)
+*HTTP::Headers::Fast::new =
+    *HTTP::Headers::Fast::XS::new;
 *HTTP::Headers::Fast::remove_content_headers =
     *HTTP::Headers::Fast::XS::remove_content_headers;
 *HTTP::Headers::Fast::_header_keys =
@@ -39,43 +38,31 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::scan;
 *HTTP::Headers::Fast::_as_string =
     *HTTP::Headers::Fast::XS::_as_string;
-*HTTP::Headers::Fast::as_string =
-    *HTTP::Headers::Fast::XS::as_string;
 *HTTP::Headers::Fast::as_string_without_sort =
     *HTTP::Headers::Fast::XS::as_string_without_sort;
 *HTTP::Headers::Fast::clone =
     *HTTP::Headers::Fast::XS::clone;
-
 *HTTP::Headers::Fast::_date_header =
     *HTTP::Headers::Fast::XS::_date_header;
-*HTTP::Headers::Fast::date =
-    *HTTP::Headers::Fast::XS::date;
-*HTTP::Headers::Fast::expires =
-    *HTTP::Headers::Fast::XS::expires;
-*HTTP::Headers::Fast::if_modified_since =
-    *HTTP::Headers::Fast::XS::if_modified_since;
-*HTTP::Headers::Fast::if_unmodified_since =
-    *HTTP::Headers::Fast::XS::if_unmodified_since;
-*HTTP::Headers::Fast::last_modified =
-    *HTTP::Headers::Fast::XS::last_modified;
-
 *HTTP::Headers::Fast::content_type =
     *HTTP::Headers::Fast::XS::content_type;
 *HTTP::Headers::Fast::content_type_charset =
     *HTTP::Headers::Fast::XS::content_type_charset;
 *HTTP::Headers::Fast::referer =
     *HTTP::Headers::Fast::XS::referer;
-*HTTP::Headers::Fast::referrer =
-    *HTTP::Headers::Fast::XS::referrer;
 
-# for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
-#     no strict 'refs';
-#     (my $meth = $key) =~ s/-/_/g;
-#     *{'HTTP::Headers::Fast::' . $meth} = sub {
-#         print("*** GONZO: method [%s]\n", $meth);
-#         (shift->header($key, @_))[0];
-#     };
-# }
+{
+    no warnings qw<redefine once>;
+    for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
+      (my $meth = $key) =~ s/-/_/g;
+      eval << "_END_EVAL";
+          sub HTTP::Headers::Fast::$meth {
+            print("*** GONZO: method [$meth]\n");
+            (shift->header($key, \@_))[0];
+          }
+_END_EVAL
+    }
+}
 
 use 5.00800;
 use Carp ();
@@ -141,12 +128,6 @@ sub new {
     $self->{hlist} = hhf_hlist_create();
     $self->header(@_) if @_;    # set up initial headers
     $self;
-}
-
-sub isa {
-    my ($self, $klass) = @_;
-    my $proto = ref $self || $self;
-    return ($proto eq $klass || $klass eq 'HTTP::Headers') ? 1 : 0;
 }
 
 sub remove_content_headers {
@@ -221,11 +202,6 @@ sub _as_string {
     join( $endl, @result, '' );
 }
 
-sub as_string {
-    my ( $self, $endl ) = @_;
-    $endl = "\n" unless defined $endl;
-    $self->_as_string($endl, $self->_sorted_field_names);
-}
 
 sub as_string_without_sort {
     my ( $self, $endl ) = @_;
@@ -254,23 +230,6 @@ sub _date_header {
     $old =~ s/;.*// if defined($old);
     HTTP::Date::str2time($old);
 }
-
-sub date                { shift->_date_header( 'date',                @_ ); }
-sub expires             { shift->_date_header( 'expires',             @_ ); }
-sub if_modified_since   { shift->_date_header( 'if-modified-since',   @_ ); }
-sub if_unmodified_since { shift->_date_header( 'if-unmodified-since', @_ ); }
-sub last_modified       { shift->_date_header( 'last-modified',       @_ ); }
-
-# This is used as a private LWP extension.  The Client-Date header is
-# added as a timestamp to a response when it has been received.
-sub client_date         { shift->_date_header( 'client-date', @_ ); }
-
-# The retry_after field is dual format (can also be a expressed as
-# number of seconds from now), so we don't provide an easy way to
-# access it until we have know how both these interfaces can be
-# addressed.  One possibility is to return a negative value for
-# relative seconds and a positive value for epoch based time values.
-sub retry_after         { shift->_date_header('Retry-After',       @_); }
 
 sub content_type {
     my $self = shift;
@@ -329,7 +288,6 @@ sub referer {
     }
     ( $self->header( 'Referer', @_ ) )[0];
 }
-*referrer = \&referer;    # on tchrist's request
 
 1;
 
