@@ -31,7 +31,6 @@ void translate_underscore(pTHX_ char *field, int len) {
             field[i] = '-';
 }
 
-
 void handle_standard_case(pTHX_ char *field, int len) {
     dMY_CXT;
     char *orig;
@@ -97,6 +96,51 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     return newSVsv(*h);
 }
 
+void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
+    SV  **h;
+    AV  *h_copy;
+    SV  **a_value;
+    int i, top_index;
+
+    h = hv_fetch( self, field, len, 1 );
+    if ( h == NULL )
+        croak("hv_fetch() failed. This should not happen.");
+
+    if ( ! SvOK(*h) ) {
+        *h = newRV_noinc( (SV *) newAV() );
+    } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+        h_copy = av_make( 1, h );
+        *h = newRV_noinc( (SV *)h_copy );
+    }
+
+    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+        h_copy = (AV *) SvRV(val);
+        top_index = av_len(h_copy);
+
+        for ( i = 0; i <= top_index; i++ ) {
+            a_value = av_fetch( h_copy, i, 0 );
+            if (a_value)
+                av_push( (AV *) SvRV(*h), *a_value );
+        }
+    } else {
+        av_push( (AV *) SvRV(*h), val );
+    }
+}
+
+void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
+    SV **val_0;
+
+    /* av_len == 0 here means that we have one item in av */
+    if ( SvROK(val) &&
+         SvTYPE( SvRV(val) ) == SVt_PVAV &&
+         av_len( (AV *)SvRV(val) ) == 0 )
+    {
+        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+        val = *val_0;
+    }
+    hv_store(self, field, len, newSVsv(val), 0);
+}
+
 /* Returns if we store that field name or not */
 bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     dSP;
@@ -133,51 +177,6 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     /* put the local SP in THX -> SP was EXTENDED */
     PUTBACK;
     return true;
-}
-
-void __push_header(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
-    SV  **h;
-    AV  *h_copy;
-    SV  **a_value;
-    int i, top_index;
-
-    h = hv_fetch( self, field, len, 1 );
-    if ( h == NULL )
-        croak("hv_fetch() failed. This should not happen.");
-
-    if ( ! SvOK(*h) ) {
-        *h = newRV_noinc( (SV *) newAV() );
-    } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
-        h_copy = av_make( 1, h );
-        *h = newRV_noinc( (SV *)h_copy );
-    }
-
-    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
-        h_copy = (AV *) SvRV(val);
-        top_index = av_len(h_copy);
-
-        for ( i = 0; i <= top_index; i++ ) {
-            a_value = av_fetch( h_copy, i, 0 );
-            if (a_value)
-                av_push( (AV *) SvRV(*h), *a_value );
-        }
-    } else {
-        av_push( (AV *) SvRV(*h), val );
-    }
-}
-
-void set_header(pTHX_ HV *self, char *field, int len, SV *val) {
-    SV **val_0;
-
-    /* av_len == 0 here means that we have one item in av */
-    if ( SvROK(val) &&
-         SvTYPE( SvRV(val) ) == SVt_PVAV &&
-         av_len( (AV *)SvRV(val) ) == 0 )
-    {
-        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
-        val = *val_0;
-    }
-    hv_store(self, field, len, newSVsv(val), 0);
 }
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
@@ -223,7 +222,7 @@ push_header( SV *self, ... )
 
             handle_standard_case(aTHX_ field, len);
 
-            __push_header(aTHX_ (HV *) SvRV(self), field, len, val);
+            push_header_value(aTHX_ (HV *) SvRV(self), field, len, val);
        }
 
 void
@@ -256,7 +255,7 @@ header(SV *self, ...)
             if (value != NULL && !SvOK(ST(2))) {
                 hv_delete(self_hash, field, len, G_DISCARD);
             } else {
-                set_header(aTHX_ self_hash, field, len, ST(2));
+                set_header_value(aTHX_ self_hash, field, len, ST(2));
             }
         } else {
             /* save the args from the stack since _header_push()
@@ -282,13 +281,13 @@ header(SV *self, ...)
                     if (value != NULL && !SvOK(args[arg + 1])) {
                         hv_delete(self_hash, field, len, G_DISCARD);
                     } else {
-                        set_header(aTHX_ self_hash, field, len, args[arg + 1]);
+                        set_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
                     }
                 } else {
                     /* @old = $self->_header_push($field, shift) */
                     handle_standard_case(aTHX_ field, len);
                     value = get_header_value(aTHX_ self_hash, field, len);
-                    __push_header(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
+                    push_header_value(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
                 }
             }
         }
@@ -388,5 +387,5 @@ _header_set(SV *self, SV *field_name, SV *val)
         if (!SvOK(val) && found) {
             hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
         } else {
-            set_header(aTHX_ (HV *)SvRV(self), field, len, val);
+            set_header_value(aTHX_ (HV *)SvRV(self), field, len, val);
         }
