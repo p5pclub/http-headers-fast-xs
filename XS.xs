@@ -179,6 +179,32 @@ bool put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     return true;
 }
 
+SV* join(pTHX_ char *sep, AV *values) {
+    int    i, top_index;
+    char   *str, *ptr;
+    STRLEN len;
+    SV     **element;
+
+    top_index = av_len(values);
+
+    element = av_fetch(values, 0, 0);
+    if (element == NULL)
+        croak("av_fetch() failed. This should not happen.");
+
+    str = SvPV(*element, len);
+    ptr = str + len;
+
+    for (i = 1; i <= top_index; i++) {
+        element = av_fetch(values, i, 0);
+        if (element == NULL)
+            croak("av_fetch() failed. This should not happen.");
+
+        ptr = stpcpy(ptr, ", ");
+        ptr = stpcpy(ptr, SvPV_nolen(*element));
+    }
+    return newSVpv(str, ptr - str);
+}
+
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
@@ -228,7 +254,7 @@ push_header( SV *self, ... )
 void
 header(SV *self, ...)
     PREINIT:
-        char   *field, *field_lc, *tmp, *val_str, *val_str_tail;
+        char   *field, *field_lc;
         int    arg, i, top_index;
         STRLEN len;
         AV     *val_array;
@@ -324,24 +350,8 @@ header(SV *self, ...)
             XSRETURN(top_index + 1);
         } else {
             /* return join( ', ', @old ) */
-            val_array_elem = av_fetch(val_array, 0, 0);
-            if (val_array_elem == NULL)
-                croak("av_fetch() failed. This should not happen.");
-            val_str = SvPV(*val_array_elem, len);
-            val_str_tail = val_str + len;
-
-            for (i = 1; i <= top_index; i++) {
-                val_array_elem = av_fetch(val_array, i, 0);
-                if (val_array_elem == NULL)
-                    croak("av_fetch() failed. This should not happen.");
-
-                tmp  = SvPV_nolen(*val_array_elem);
-                val_str_tail = stpcpy(val_str_tail, ", ");
-                val_str_tail = stpcpy(val_str_tail, tmp);
-            }
-            PUSHs(newSVpv(val_str, val_str_tail - val_str));
-            PUTBACK;
-            XSRETURN(1);
+            value = join(aTHX_ ", ", (AV *) SvRV(value));
+            PUSHs(value);
         }
 
 void
