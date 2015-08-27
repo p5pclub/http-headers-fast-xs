@@ -2,6 +2,8 @@ use strict;
 use warnings;
 use Test::More;
 use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
+
 plan tests => 5;
 
 my $h = HTTP::Headers::Fast->new();

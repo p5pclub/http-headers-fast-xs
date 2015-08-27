@@ -4,13 +4,14 @@ use strict;
 use Test qw(plan ok);
 use Test::Requires 'URI';
 
+use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
+
 plan tests => 165;
 
 my($h, $h2);
 sub j { join("|", @_) }
 
-
-require HTTP::Headers::Fast;
 $h = HTTP::Headers::Fast->new;
 ok($h);
 ok(ref($h), "HTTP::Headers::Fast");

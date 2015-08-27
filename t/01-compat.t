@@ -2,6 +2,8 @@ use strict;
 use warnings;
 use Test::More;
 use HTTP::Headers::Fast;
+use HTTP::Headers::Fast::XS;
+
 plan skip_all => 'this test requires HTTP::Headers 5.822 or lator' unless eval "use HTTP::Headers 5.822; 1;";
 plan tests => 2;
 
