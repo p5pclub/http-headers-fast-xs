@@ -40,3 +40,9 @@ HTTP-Headers-Fast-*/
 *.o
 *.bs
 *.swp
+
+nytprof*
+cover_db*
+*.gcda
+*.gcno
+*.gcov
