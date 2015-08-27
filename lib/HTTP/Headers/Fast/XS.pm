@@ -55,12 +55,11 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     no warnings qw<redefine once>;
     for my $key (qw/content-length content-language content-encoding title user-agent server from warnings www-authenticate authorization proxy-authenticate proxy-authorization/) {
       (my $meth = $key) =~ s/-/_/g;
-      eval << "_END_EVAL";
-          sub HTTP::Headers::Fast::$meth {
-            print("*** GONZO: method [$meth]\n");
-            (shift->header($key, \@_))[0];
-          }
-_END_EVAL
+      no strict 'refs';
+      *{ "HTTP::Headers::Fast::$meth" } = sub {
+          print("*** GONZO: method [$meth]\n");
+          (shift->header($key, @_))[0];
+      };
     }
 }
 
@@ -280,6 +279,8 @@ sub referer {
     }
     ( $self->header( 'Referer', @_ ) )[0];
 }
+
+*HTTP::Headers::Fast::referrer = \&referer;
 
 1;
 

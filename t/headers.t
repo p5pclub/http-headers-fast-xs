@@ -9,8 +9,7 @@ plan tests => 164;
 my($h, $h2);
 sub j { join("|", @_) }
 
-
-require HTTP::Headers::Fast;
+require HTTP::Headers::Fast::XS;
 $h = HTTP::Headers::Fast->new;
 ok($h);
 ok(ref($h), "HTTP::Headers::Fast");
