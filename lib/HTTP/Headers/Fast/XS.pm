@@ -71,19 +71,11 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 use 5.00800;
 use Carp ();
 
-### our $TRANSLATE_UNDERSCORE = 1;
-
 # "Good Practice" order of HTTP message headers:
 #    - General-Headers
 #    - Request-Headers
 #    - Response-Headers
 #    - Entity-Headers
-
-# yappo says "Readonly sucks".
-my $OP_GET    = 0;
-my $OP_SET    = 1;
-my $OP_INIT   = 2;
-my $OP_PUSH   = 3;
 
 my @general_headers = qw(
   Cache-Control Connection Date Pragma Trailer Transfer-Encoding Upgrade
@@ -184,10 +176,10 @@ sub _as_string {
     my @result;
     for my $key ( @$fieldnames ) {
         next if index($key, '_') == 0;
+        my $field = $standard_case{$key} || $key;
+        $field =~ s/^://;
         my @vals = $self->header($key);
         for my $val (@vals) {
-            my $field = $standard_case{$key} || $key;
-            $field =~ s/^://;
             if ( index($val, "\n") >= 0 ) {
                 $val = _process_newline($val, $endl);
             }
@@ -197,7 +189,6 @@ sub _as_string {
 
     join( $endl, @result, '' );
 }
-
 
 sub as_string_without_sort {
     my ( $self, $endl ) = @_;
