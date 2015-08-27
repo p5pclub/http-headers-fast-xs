@@ -5,8 +5,8 @@
 #include "gmem.h"
 #include "hlist.h"
 
-static SNode* snode_alloc(const char* str, void* obj) {
-  if (str && obj) {
+static SNode* snode_alloc(void* obj) {
+  if (!obj) {
     return 0;
   }
 
@@ -16,21 +16,8 @@ static SNode* snode_alloc(const char* str, void* obj) {
     return 0;
   }
 
-  memset(&snode->data, 0, sizeof(snode->data));
-  snode->refcnt = 0;
-  snode->type = SNODE_TYPE_NONE;
-
-  if (str) {
-    snode->type = SNODE_TYPE_STR;
-    gstr_init(&snode->data.gstr, str, -1);
-    GLOG(("=C= SNode allocating str [%s]", snode->data.gstr.str));
-  }
-
-  if (obj) {
-    snode->type = SNODE_TYPE_OBJ;
-    snode->data.pobj.obj = obj;
-    GLOG(("=C= SNode allocating obj [%p]", snode->data.pobj.obj));
-  }
+  snode->obj = obj;
+  GLOG(("=C= SNode allocating obj [%p]", snode->obj));
 
   return snode;
 }
@@ -40,17 +27,7 @@ static void snode_dealloc(SNode* snode) {
     return;
   }
 
-  switch (snode->type) {
-  case SNODE_TYPE_STR:
-    GLOG(("=C= SNode deallocating str [%s]", snode->data.gstr.str));
-    gstr_clear(&snode->data.gstr);
-    break;
-
-  case SNODE_TYPE_OBJ:
-    GLOG(("=C= SNode deallocating obj [%p]", snode->data.pobj.obj));
-    break;
-  }
-
+  GLOG(("=C= SNode deallocating obj [%p]", snode->obj));
   GMEM_DEL(snode, SNode*, sizeof(SNode));
 }
 
@@ -91,17 +68,15 @@ void slist_destroy(SList* slist) {
 SList* slist_clone(SList* slist) {
   SList* p = slist_alloc();
   if (slist && slist->alen > 0) {
+    int j;
     p->alen = slist->alen;
     p->ulen = slist->ulen;
     GMEM_NEWARR(p->data, SNode*, p->alen, sizeof(SNode));
-    for (int j = 0; j < p->alen; ++j) {
-      p->data[j].type = slist->data[j].type;
+    for (j = 0; j < p->alen; ++j) {
       if (j < slist->ulen) {
-        gstr_init(&p->data[j].data.gstr,
-                  slist->data[j].data.gstr.str,
-                  slist->data[j].data.gstr.ulen);
+        p->data[j].obj = slist->data[j].obj;
       } else {
-        gstr_init(&p->data[j].data.gstr, 0, 0);
+        p->data[j].obj = 0;
       }
     }
   }
@@ -114,8 +89,9 @@ int slist_clear(SList* slist) {
     return 0;
   }
 
-  for (int j = 0; j < slist->ulen; ++j) {
-    gstr_clear(&slist->data[j].data.gstr);
+  int j;
+  for (j = 0; j < slist->ulen; ++j) {
+    slist->data[j].obj = 0;
   }
   GMEM_DELARR(slist->data, SNode*, slist->alen, sizeof(SNode));
   slist->data = 0;
@@ -133,36 +109,26 @@ int slist_size(const SList* slist) {
 
 void slist_dump(SList* slist, FILE* fp)
 {
-  static char* ctype[SNODE_TYPE_SIZE] = {
-    "NONE",
-    "STR",
-    "OBJ",
-  };
+  int j;
 
   if (!slist) {
     return;
   }
 
   fprintf(fp, "SList at 0x%p with %d elements:\n", slist, slist_size(slist));
-  for (int j = 0; j < slist->ulen; ++j) {
+  for (j = 0; j < slist->ulen; ++j) {
     SNode* s = &slist->data[j];
-    fprintf(fp, ">  %3d [%2d|%s|%p]: ",
-            j, s->refcnt, ctype[s->type], s);
-    switch (s->type) {
-    case SNODE_TYPE_STR:
-      fprintf(fp, "[%s]", s->data.gstr.str);
-      break;
-
-    case SNODE_TYPE_OBJ:
-      fprintf(fp, "[%p]", s->data.pobj.obj);
-      break;
-    }
+    fprintf(fp, ">  %3d [%p]: ",
+            j, s);
+    fprintf(fp, "[%p]", s->obj);
     fprintf(fp, "\n");
   }
   fflush(fp);
 }
 
 static void slist_grow(SList* slist) {
+  int j;
+
   if (slist->ulen < slist->alen) {
     return;
   }
@@ -171,45 +137,19 @@ static void slist_grow(SList* slist) {
   GLOG(("=C= growing SList %p from %d to %d", slist, slist->alen, len));
   SNode* data;
   GMEM_NEWARR(data, SNode*, len, sizeof(SNode));
-  for (int j = 0; j < slist->alen; ++j) {
-    data[j].type = slist->data[j].type;
-    gstr_init(&data[j].data.gstr, 0, 0);
-    if (j >= slist->ulen) {
-      continue;
-    }
-
-    data[j].data.gstr.ulen = slist->data[j].data.gstr.ulen;
-    if (slist->data[j].data.gstr.alen <= 0) {
-      memcpy(data[j].data.gstr.buf, slist->data[j].data.gstr.buf, slist->data[j].data.gstr.ulen);
+  for (j = 0; j < slist->alen; ++j) {
+    if (j < slist->ulen) {
+      data[j].obj = slist->data[j].obj;
     } else {
-      data[j].data.gstr.str  = slist->data[j].data.gstr.str;
-      data[j].data.gstr.alen = slist->data[j].data.gstr.alen;
+      data[j].obj = 0;
     }
-    gstr_init(&slist->data[j].data.gstr, 0, 0);
   }
   GMEM_DELARR(slist->data, SNode*, slist->alen, sizeof(SNode));
   slist->data = data;
   slist->alen = len;
 }
 
-void slist_add_str(SList* slist, const char* str)
-{
-  if (!slist) {
-    return;
-  }
-  if (!str) {
-    return;
-  }
-
-  slist_grow(slist);
-
-  gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
-  slist->data[slist->ulen].type = SNODE_TYPE_STR;
-  GLOG(("=C= added str [%s] at pos %d", str, slist->ulen));
-  ++slist->ulen;
-}
-
-void slist_add_obj(SList* slist, void* obj)
+void slist_add(SList* slist, void* obj)
 {
   if (!slist) {
     return;
@@ -220,8 +160,7 @@ void slist_add_obj(SList* slist, void* obj)
 
   slist_grow(slist);
 
-  // TODO gstr_init(&slist->data[slist->ulen].data.gstr, str, 0);
-  slist->data[slist->ulen].type = SNODE_TYPE_OBJ;
+  slist->data[slist->ulen].obj = obj;
   GLOG(("=C= added obj [%p] at pos %d", obj, slist->ulen));
   ++slist->ulen;
 }
@@ -312,12 +251,14 @@ void hlist_destroy(HList* hlist) {
 }
 
 int hlist_clear(HList* hlist) {
+  int j;
   if (!hlist) {
     return 0;
   }
 
-  for (int j = 0; j < hlist->alen; ++j) {
-    for (HNode* h = hlist->data[j]; h != 0; ) {
+  for (j = 0; j < hlist->alen; ++j) {
+    HNode* h;
+    for (h = hlist->data[j]; h != 0; ) {
       HNode* q = h->nxt;
       hnode_dealloc(h);
       h = q;
@@ -340,9 +281,11 @@ HList* hlist_clone(HList* hlist) {
   }
 
   if (hlist) {
-    for (int j = 0; j < hlist->alen; ++j) {
+    int j;
+    for (j = 0; j < hlist->alen; ++j) {
       HNode* q = 0;
-      for (HNode* h = hlist->data[j]; h != 0; h = h->nxt) {
+      HNode* h;
+      for (h = hlist->data[j]; h != 0; h = h->nxt) {
         HNode* p = hnode_alloc(h->name);
         p->slist = slist_clone(h->slist);
         ++nl->ulen;
@@ -373,12 +316,14 @@ int hlist_size(const HList* hlist) {
 
 void hlist_dump(HList* hlist, FILE* fp)
 {
+  int j;
   if (!hlist) {
     return;
   }
   fprintf(fp, "HList at 0x%p with %d elements:\n", hlist, hlist_size(hlist));
-  for (int j = 0; j < hlist->alen; ++j) {
-    for (HNode* h = hlist->data[j]; h != 0; h = h->nxt) {
+  for (j = 0; j < hlist->alen; ++j) {
+    HNode* h;
+    for (h = hlist->data[j]; h != 0; h = h->nxt) {
       fprintf(fp, "> Name: %p [%d|%s]\n",
               h, h->name[0] == ':', h->name);
       slist_dump(h->slist, fp);
@@ -547,14 +492,8 @@ HNode* hlist_get_header(HList* hlist, int translate_underscore,
 }
 
 HNode* hlist_add_header(HList* hlist, int translate_underscore,
-                        HNode* h, const char* name, const char* str, void* obj)
+                        HNode* h, const char* name, void* obj)
 {
-  if (str && obj) {
-    GLOG(("=C= add_header have both str [%s] and obj [%p] -- BAD",
-          str, obj));
-    return 0;
-  }
-
   if (h) {
     GLOG(("=C= add_header using [%s] at %p", name, h));
   } else {
@@ -568,11 +507,8 @@ HNode* hlist_add_header(HList* hlist, int translate_underscore,
     }
   }
 
-  if (str) {
-    slist_add_str(h->slist, str);
-  }
   if (obj) {
-    slist_add_obj(h->slist, obj);
+    slist_add(h->slist, obj);
   }
 
   // slist_dump(h->slist, stderr);

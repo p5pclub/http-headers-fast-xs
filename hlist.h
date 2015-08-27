@@ -1,8 +1,6 @@
 #ifndef HLIST_H_
 #define HLIST_H_
 
-#include "gstr.h"
-
 #define SNODE_TYPE_NONE 0
 #define SNODE_TYPE_STR  1
 #define SNODE_TYPE_OBJ  2
@@ -16,16 +14,8 @@
  *
  * + a dynamically allocated string
  */
-typedef struct PObj {
-  void* obj;
-} PObj;
 typedef struct SNode {
-  union {
-    GStr gstr;
-    PObj pobj;
-  } data;
-  short refcnt;
-  short type;
+  void* obj;
 } SNode;
 
 /*
@@ -142,7 +132,7 @@ HNode* hlist_get_header(HList* hlist, int translate_underscore,
 // Add a value to the SList for a given header name.
 // If header name already exists, append to its values; if not, create it.
 HNode* hlist_add_header(HList* hlist, int translate_underscore,
-                        HNode* h, const char* name, const char* str, void* obj);
+                        HNode* h, const char* name, void* obj);
 
 // Delete a given header from an HList, if that header is there.
 HNode* hlist_del_header(HList* hlist, int translate_underscore,
