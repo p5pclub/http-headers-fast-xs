@@ -293,7 +293,7 @@ header(SV *self, ...)
         }
 
         if (GIMME_V == G_VOID)
-            return;
+            XSRETURN_EMPTY;
 
         if (value == NULL) {
             /* return wantarray ? () : undef */
@@ -322,27 +322,27 @@ header(SV *self, ...)
             }
             PUTBACK;
             XSRETURN(top_index + 1);
-        }
-
-        /* return join( ', ', @old ) */
-        val_array_elem = av_fetch(val_array, 0, 0);
-        if (val_array_elem == NULL)
-            croak("av_fetch() failed. This should not happen.");
-        val_str = SvPV(*val_array_elem, len);
-        val_str_tail = val_str + len;
-
-        for (i = 1; i <= top_index; i++) {
-            val_array_elem = av_fetch(val_array, i, 0);
+        } else {
+            /* return join( ', ', @old ) */
+            val_array_elem = av_fetch(val_array, 0, 0);
             if (val_array_elem == NULL)
                 croak("av_fetch() failed. This should not happen.");
+            val_str = SvPV(*val_array_elem, len);
+            val_str_tail = val_str + len;
 
-            tmp  = SvPV_nolen(*val_array_elem);
-            val_str_tail = stpcpy(val_str_tail, ", ");
-            val_str_tail = stpcpy(val_str_tail, tmp);
+            for (i = 1; i <= top_index; i++) {
+                val_array_elem = av_fetch(val_array, i, 0);
+                if (val_array_elem == NULL)
+                    croak("av_fetch() failed. This should not happen.");
+
+                tmp  = SvPV_nolen(*val_array_elem);
+                val_str_tail = stpcpy(val_str_tail, ", ");
+                val_str_tail = stpcpy(val_str_tail, tmp);
+            }
+            PUSHs(newSVpv(val_str, val_str_tail - val_str));
+            PUTBACK;
+            XSRETURN(1);
         }
-        PUSHs(newSVpv(val_str, val_str_tail - val_str));
-        PUTBACK;
-        XSRETURN(1);
 
 void
 _header_get( SV *self, SV *field_name, ... )
