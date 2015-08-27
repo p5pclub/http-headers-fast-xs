@@ -242,6 +242,23 @@ hhf_hlist_clone(unsigned long nh)
     h = (HList*) nh;
     t = hlist_clone(h);
     GLOG(("=X= HLIST_CLONE(%p|%d) => %p", h, hlist_size(h), t));
+
+    /* Clone the SVs into new ones */
+    HIter hiter;
+    for (hiter_reset(&hiter, h);
+         hiter_more(&hiter);
+         hiter_next(&hiter)) {
+      HNode* hnode = hiter_fetch(&hiter);
+
+      SIter siter;
+      for (siter_reset(&siter, hnode->slist);
+           siter_more(&siter);
+           siter_next(&siter)) {
+        SNode* snode = siter_fetch(&siter);
+        snode->obj = newSVsv( (SV*)snode->obj );
+      }
+    }
+
     RETVAL = t;
 
   OUTPUT: RETVAL
@@ -273,8 +290,7 @@ DESTROY(SV* self, ...)
            siter_more(&siter);
            siter_next(&siter)) {
         SNode* snode = siter_fetch(&siter);
-        SV* sv = (SV*) snode->obj;
-        /* TODO: delete this shit */
+        sv_2mortal( (SV*) snode->obj );
       }
     }
 
