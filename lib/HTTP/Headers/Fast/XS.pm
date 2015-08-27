@@ -202,15 +202,6 @@ sub as_string_without_sort {
     $self->_as_string($endl, [$self->_header_keys()]);
 }
 
-sub clone {
-    my $self = shift;
-    my $class = ref($self);
-
-    my $obj = bless {}, $class;
-    $obj->{hlist} = hhf_hlist_clone($self->{hlist});
-    $obj;
-}
-
 sub _date_header {
     require HTTP::Date;
     my ( $self, $header, $time ) = @_;

@@ -228,8 +228,12 @@ BOOT:
     );
 }
 
+
+#################################################################
+
+
 SV *
-new( SV* class, ... )
+new( SV* klass, ... )
   PREINIT:
     int    j;
     int    ctrans = 0;
@@ -239,6 +243,7 @@ new( SV* class, ... )
     SV*    pkey;
     SV*    pval;
     char*  ckey;
+
   CODE:
     if ( ( items - 1 ) % 2 )
         croak("Expecting a hash as input to constructor");
@@ -271,28 +276,33 @@ new( SV* class, ... )
     }
 
     self = newRV_noinc( (SV*)hash );
-    RETVAL = sv_bless( self, gv_stashpv( SvPV_nolen(class), 0 ) );
+    RETVAL = sv_bless( self, gv_stashpv( SvPV_nolen(klass), 0 ) );
 
   OUTPUT: RETVAL
 
-#
-# Clone an existing HList.
-#
-void*
-hhf_hlist_clone(unsigned long nh)
 
+SV *
+clone( SV* self )
   PREINIT:
     HList* h = 0;
-    HList* t = 0;
+    HList* list = 0;
+    SV*    them = 0;
+    HV*    hash;
+    char*  klass;
 
   CODE:
-    h = (HList*) nh;
-    t = hlist_clone(h);
-    GLOG(("=X= HLIST_CLONE(%p|%d) => %p", h, hlist_size(h), t));
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ clone(%p|%d)", h, hlist_size(h)));
+
+    hash = newHV();
+    list = hlist_clone(h);
+
+    if ( !list )
+      croak("Could not initialize HList list object");
 
     /* Clone the SVs into new ones */
     HIter hiter;
-    for (hiter_reset(&hiter, h);
+    for (hiter_reset(&hiter, list);
          hiter_more(&hiter);
          hiter_next(&hiter)) {
       HNode* hnode = hiter_fetch(&hiter);
@@ -306,13 +316,17 @@ hhf_hlist_clone(unsigned long nh)
       }
     }
 
-    RETVAL = t;
+    SV** hlist_created = hv_store( hash, "hlist", strlen("hlist"), newSViv((IV)list), 0 );
+
+    if ( !hlist_created )
+      croak("We could not store value for 'hlist'. This should not happen.");
+
+    them = newRV_noinc( (SV*)hash );
+    klass = HvNAME(SvSTASH(SvRV(self)));
+    RETVAL = sv_bless( them, gv_stashpv( klass, 0 ) );
 
   OUTPUT: RETVAL
 
-
-
-#################################################################
 
 #
 # Object's destructor, called automatically
