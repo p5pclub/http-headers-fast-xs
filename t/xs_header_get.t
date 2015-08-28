@@ -7,7 +7,22 @@ BEGIN {
     use_ok('HTTP::Headers::Fast::XS');
 }
 
+package ArrayObject;
+sub new {
+    my $class = shift;
+    bless [@_], $class;
+}
+
+package main;
 can_ok( HTTP::Headers::Fast::, '_header_get' );
+
+{
+    my $obj = ArrayObject->new(1, 2, 3);
+    my $h = HTTP::Headers::Fast->new( foo => $obj );
+    my @val = $h->header('foo');
+
+    is_deeply( [@val], [$obj], 'gets array-based object' );
+}
 
 {
     my $h = HTTP::Headers::Fast->new(foo => "bar", foo_multi => "baaaaz", foo_multi => "baz");

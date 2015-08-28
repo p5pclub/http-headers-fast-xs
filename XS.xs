@@ -328,20 +328,22 @@ header(SV *self, ...)
                 XSRETURN_UNDEF;
         }
 
-        if (!SvROK(value) || SvTYPE(SvRV(value)) != SVt_PVAV) {
-            /* return $old[0] */
-            PUSHs(sv_2mortal(value));
-            XSRETURN(1);
-        } else if (GIMME_V == G_ARRAY) {
-            /* return @old */
-            PUTBACK;
-            count = put_array_values_on_perl_stack((AV *) SvRV(value)); 
-            SPAGAIN;
+        if (SvROK(value) && (SvTYPE(SvRV(value)) == SVt_PVAV) && !sv_isobject(value)) {
+            if (GIMME_V == G_ARRAY) {
+                /* return @old */
+                PUTBACK;
+                count = put_array_values_on_perl_stack((AV *) SvRV(value));
+                SPAGAIN;
 
-            XSRETURN(count);
+                XSRETURN(count);
+            } else {
+                /* return join( ', ', @old ) */
+                value = join(aTHX_ ", ", (AV *) SvRV(value));
+                PUSHs(sv_2mortal(value));
+                XSRETURN(1);
+            }
         } else {
-            /* return join( ', ', @old ) */
-            value = join(aTHX_ ", ", (AV *) SvRV(value));
+            /* return $old[0] */
             PUSHs(sv_2mortal(value));
             XSRETURN(1);
         }
