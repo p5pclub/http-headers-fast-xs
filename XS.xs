@@ -104,12 +104,12 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
 
     if ( ! SvOK(*h) ) {
         *h = newRV_noinc( (SV *) newAV() );
-    } else if ( ! SvROK(*h) || SvTYPE( SvRV(*h) ) != SVt_PVAV ) {
+    } else if ( ! SvROK(*h) || SvTYPE(SvRV(*h)) != SVt_PVAV || sv_isobject(*h) ) {
         h_copy = av_make( 1, h );
         *h = newRV_noinc( (SV *)h_copy );
     }
 
-    if ( SvROK(val) && SvTYPE( SvRV(val) ) == SVt_PVAV ) {
+    if ( SvROK(val) && SvTYPE(SvRV(val)) == SVt_PVAV && !sv_isobject(val) ) {
         h_copy = (AV *) SvRV(val);
         top_index = av_len(h_copy);
 
@@ -131,6 +131,7 @@ void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
     /* if array has a single element, then store that element instead of the array */
     if ( SvROK(val) &&
          SvTYPE( SvRV(val) ) == SVt_PVAV &&
+         !sv_isobject(val) &&
          av_len( (AV *)SvRV(val) ) == 0 )
     {
         val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
@@ -172,7 +173,7 @@ int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     if (value == NULL)
         return 0;
 
-    if ( SvROK(value) && SvTYPE( SvRV(value) ) == SVt_PVAV ) {
+    if (SvROK(value) && (SvTYPE(SvRV(value)) == SVt_PVAV) && !sv_isobject(value)) {
         /* If the value is an array, put all the values of the array on stack.
          * This will return @$h to perl */
         count = put_array_values_on_perl_stack((AV *) SvRV(value));
