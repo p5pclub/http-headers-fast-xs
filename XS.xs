@@ -257,8 +257,8 @@ push_header( SV *self, ... )
 void
 header(SV *self, ...)
     PREINIT:
-        char   *field, *field_lc;
-        int    arg, i;
+        char   *field;
+        int    arg;
         STRLEN len;
         SV     *args[items], *value;
         HV     *seen, *self_hash;
@@ -295,16 +295,12 @@ header(SV *self, ...)
             for (arg = 1; arg < items; arg += 2) {
                 /* lc $field - but don't modify the original */
                 field = SvPV(args[arg], len);
-                field_lc = (char *) alloca(len + 1);
-                for (i = 0; i < len; i++)
-                    field_lc[i] = tolower( field[i] );
+                handle_standard_case(aTHX_ field, len);
 
-                if ( !hv_exists(seen, field_lc, len) ) {
-                    hv_store(seen, field_lc, len, newSViv(1), 0);
+                if ( !hv_exists(seen, field, len) ) {
+                    hv_store(seen, field, len, newSViv(1), 0);
 
                     /* @old = $self->_header_set($field, shift) */
-                    handle_standard_case(aTHX_ field, len);
-
                     value = get_header_value(aTHX_ self_hash, field, len);
                     if (value != NULL && !SvOK(args[arg + 1])) {
                         hv_delete(self_hash, field, len, G_DISCARD);
@@ -313,7 +309,6 @@ header(SV *self, ...)
                     }
                 } else {
                     /* @old = $self->_header_push($field, shift) */
-                    handle_standard_case(aTHX_ field, len);
                     value = get_header_value(aTHX_ self_hash, field, len);
                     push_header_value(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
                 }
