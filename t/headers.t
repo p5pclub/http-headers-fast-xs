@@ -20,12 +20,12 @@ ok($h->as_string, "");
 $h = HTTP::Headers::Fast->new(foo => "bar", foo => "baaaaz", Foo => "baz");
 ok($h->as_string, "Foo: bar\nFoo: baaaaz\nFoo: baz\n");
 
+$h = HTTP::Headers::Fast->new;
+$h->header(foo => ['bar']);
+ok($h->as_string, "Foo: bar\n");
+
 $h = HTTP::Headers::Fast->new(foo => ["bar", "baz"]);
 ok($h->as_string, "Foo: bar\nFoo: baz\n");
-
-$h = HTTP::Headers::Fast->new(foo => 1, bar => 2);
-$h->header(foo => undef);
-ok($h->as_string, "Bar: 2\n");
 
 $h = HTTP::Headers::Fast->new(foo => 1, bar => 2, foo_bar => 3);
 ok($h->as_string, "Bar: 2\nFoo: 1\nFoo-Bar: 3\n");
