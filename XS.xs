@@ -56,14 +56,11 @@ void handle_standard_case(pTHX_ char *field, int len) {
 
     orig[len] = '\0';
 
-    /* if we already have a value in the hash table, nothing to do */
-    standard_case_val = hv_fetch(
-        MY_CXT.standard_case, field, len, 1
-    );
-
-    if (!standard_case_val)
+    standard_case_val = hv_fetch(MY_CXT.standard_case, field, len, 1);
+    if (standard_case_val == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
+    /* if we already have a value in the hash table, nothing to do */
     if ( SvOK(*standard_case_val) )
         return;
 
@@ -118,8 +115,10 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
 
         for ( i = 0; i <= top_index; i++ ) {
             a_value = av_fetch( h_copy, i, 0 );
-            if (a_value)
-                av_push( (AV *) SvRV(*h), *a_value );
+            if (a_value == NULL)
+                croak("av_fetch() failed. This should not happen.");
+
+            av_push( (AV *) SvRV(*h), *a_value );
         }
     } else {
         av_push( (AV *) SvRV(*h), val );
@@ -129,14 +128,18 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
 void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
     SV **val_0;
 
-    /* av_len == 0 here means that we have one item in av */
+    /* if array has a single element, then store that element instead of the array */
     if ( SvROK(val) &&
          SvTYPE( SvRV(val) ) == SVt_PVAV &&
          av_len( (AV *)SvRV(val) ) == 0 )
     {
         val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+        if (val_0 == NULL)
+            croak("av_fetch() failed. This should not happen.");
+
         val = *val_0;
     }
+
     hv_store(self, field, len, newSVsv(val), 0);
 }
 
@@ -150,7 +153,6 @@ int put_array_values_on_perl_stack(pTHX_ AV *array) {
 
     for (i = 0; i < count; i++) {
         array_elem = av_fetch(array, i, 0);
-
         if (array_elem == NULL)
             croak("av_fetch() failed. This should not happen.");
 
