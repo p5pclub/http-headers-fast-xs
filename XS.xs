@@ -118,10 +118,10 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
             if (a_value == NULL)
                 croak("av_fetch() failed. This should not happen.");
 
-            av_push( (AV *) SvRV(*h), *a_value );
+            av_push( (AV *) SvRV(*h), newSVsv(*a_value) );
         }
     } else {
-        av_push( (AV *) SvRV(*h), val );
+        av_push( (AV *) SvRV(*h), newSVsv(val) );
     }
 }
 
@@ -312,7 +312,7 @@ header(SV *self, ...)
                 } else {
                     /* @old = $self->_header_push($field, shift) */
                     value = get_header_value(aTHX_ self_hash, field, len);
-                    push_header_value(aTHX_ self_hash, field, len, newSVsv(args[arg + 1]));
+                    push_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
                 }
             }
         }
