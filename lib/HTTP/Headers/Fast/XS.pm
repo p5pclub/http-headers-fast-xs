@@ -168,38 +168,38 @@ sub _process_newline {
     $_;
 }
 
-sub _as_string {
-    my ($self, $endl, $fieldnames) = @_;
-
-    my @result;
-    for my $key ( @$fieldnames ) {
-        next if index($key, '_') == 0;
-        my $field = $standard_case{$key} || $key;
-        $field =~ s/^://;
-        my @vals = $self->header($key);
-        for my $val (@vals) {
-            if ( index($val, "\n") >= 0 ) {
-                $val = _process_newline($val, $endl);
-            }
-            push @result, $field . ': ' . $val;
-        }
-    }
-
-    join( $endl, @result, '' );
-}
+#sub _as_string {
+#    my ($self, $endl, $fieldnames) = @_;
+#
+#    my @result;
+#    for my $key ( @$fieldnames ) {
+#        next if index($key, '_') == 0;
+#        my $field = $standard_case{$key} || $key;
+#        $field =~ s/^://;
+#        my @vals = $self->header($key);
+#        for my $val (@vals) {
+#            if ( index($val, "\n") >= 0 ) {
+#                $val = _process_newline($val, $endl);
+#            }
+#            push @result, $field . ': ' . $val;
+#        }
+#    }
+#
+#    join( $endl, @result, '' );
+#}
 
 sub as_string {
     my ( $self, $endl ) = @_;
     $endl = "\n" unless defined $endl;
 
-    my @names = $self->_header_keys();
-    $self->_as_string($endl, _sort_field_names(\@names));
+    $self->_as_string(1, $endl);
 }
 
 sub as_string_without_sort {
     my ( $self, $endl ) = @_;
     $endl = "\n" unless defined $endl;
-    $self->_as_string($endl, [$self->_header_keys()]);
+
+    $self->_as_string(0, $endl);
 }
 
 sub _date_header {

@@ -4,6 +4,8 @@
 #include "XSUB.h"
 #include "ppport.h"
 #include "glog.h"
+#include "header.h"
+#include "plist.h"
 #include "hlist.h"
 
 #define HLIST_KEY_STR "hlist"
@@ -18,16 +20,16 @@ typedef struct {
 START_MY_CXT;
 
 static HList* fetch_hlist(pTHX_  SV* self);
-static HNode* set_scalar(pTHX_  HList* h, int trans, HNode* n, const char* ckey, SV* pval);
-static HNode* set_array (pTHX_  HList* h, int trans, HNode* n, const char* ckey, AV* pval);
-static HNode* set_value (pTHX_  HList* h, int trans, HNode* n, const char* ckey, SV* pval);
+static void set_scalar(pTHX_  HList* h, int trans, const char* ckey, SV* pval);
+static void set_array (pTHX_  HList* h, int trans, const char* ckey, AV* pval);
+static void set_value (pTHX_  HList* h, int trans, const char* ckey, SV* pval);
 
 static HList* fetch_hlist(pTHX_  SV* self) {
   HList* h;
 
   h = (HList*) SvIV(*hv_fetch((HV*) SvRV(self),
                     HLIST_KEY_STR, HLIST_KEY_LEN, 0));
-return h;
+  return h;
 }
 
 /* FIXME: don't send self */
@@ -43,36 +45,58 @@ static int fetch_translate(pTHX_ SV* self) {
   return trans;
 }
 
-static HNode* set_scalar(pTHX_  HList* h, int trans, HNode* n, const char* ckey, SV* pval) {
-  n = hlist_add_header(h, trans, n, ckey, newSVsv(pval));
-  GLOG(("=X= set scalar [%s] => [%s]", ckey, SvPV_nolen(pval)));
-  return n;
-}
-
-static HNode* set_array(pTHX_  HList* h, int trans, HNode* n, const char* ckey, AV* pval) {
-  int count = av_len(pval) + 1;
-	int j;
-  for (j = 0; j < count; ++j) {
-    SV** svp = av_fetch(pval, j, 0);
-    n = set_value(aTHX_  h, trans, n, ckey, *svp);
+static int format_all(pTHX_ HList* h, char* str, const char* endl) {
+  int pos = 0;
+  for (int j = 0; j < h->ulen; ++j) {
+    HNode* hn = &h->data[j];
+    const char* header = hn->header->name;
+    PList* pl = hn->values;
+    for (int k = 0; k < pl->ulen; ++k) {
+      PNode* pn = &pl->data[k];
+      const char* value = SvPV_nolen( (SV*) pn->ptr );
+      GLOG(("=X= [%s] => [%s]", header, value));
+      pos += sprintf(str + pos, "%s: %s%s", header, value, endl);
+    }
   }
-  return n;
+  str[pos] = '\0';
+  return pos;
 }
 
-static HNode* set_value(pTHX_  HList* h, int trans, HNode* n, const char* ckey, SV* pval) {
-	if ( ! SvOK(pval) )
-		return hlist_del_header( h, trans, n, ckey );
+static void set_scalar(pTHX_  HList* h, int trans, const char* ckey, SV* pval) {
+  hlist_add(h, ckey, newSVsv(pval));
+  GLOG(("=X= set scalar [%s] => [%s]", ckey, SvPV_nolen(pval)));
+}
 
-	if ( ! SvROK(pval) )
-    return set_scalar(aTHX_  h, trans, n, ckey, pval);
+static void set_array(pTHX_  HList* h, int trans, const char* ckey, AV* pval) {
+  int count = av_len(pval) + 1;
+  int j;
+  for (j = 0; j < count; ++j) {
+    GLOG(("=X= set array %2d [%s]", j, ckey));
+    SV** svp = av_fetch(pval, j, 0);
+    set_value(aTHX_  h, trans, ckey, *svp);
+  }
+}
 
-	SV* deref = SvRV(pval);
+static void set_value(pTHX_  HList* h, int trans, const char* ckey, SV* pval) {
+  if ( ! SvOK(pval) ) {
+    GLOG(("=X= deleting [%s]", ckey));
+    hlist_del( h, ckey );
+    return;
+  }
 
-	if (SvTYPE(deref) != SVt_PVAV)
-    return set_scalar( aTHX_  h, trans, n, ckey, pval);
+  if ( ! SvROK(pval) ) {
+    set_scalar(aTHX_  h, trans, ckey, pval);
+    return;
+  }
+
+  SV* deref = SvRV(pval);
+  if (SvTYPE(deref) != SVt_PVAV) {
+    set_scalar( aTHX_  h, trans, ckey, pval);
+    return;
+  }
 
   AV* array = (AV*) deref;
-  return set_array(aTHX_  h, trans, n, ckey, array);
+  set_array(aTHX_  h, trans, ckey, array);
 }
 
 /*
@@ -88,10 +112,6 @@ static void return_hlist(pTHX_   HList* list, const char* func, int want) {
   }
 
   int count = hlist_size(list);
-  if (count <= 0) {
-    GLOG(("=X= %s: hlist is empty, returning nothing", func));
-    return;
-  }
 
   if (want == G_SCALAR) {
     GLOG(("=X= %s: returning number of elements", func));
@@ -100,19 +120,21 @@ static void return_hlist(pTHX_   HList* list, const char* func, int want) {
     PUTBACK;
   }
 
+  if (count <= 0) {
+    GLOG(("=X= %s: hlist is empty, returning nothing", func));
+    return;
+  }
+
   if (want == G_ARRAY) {
     GLOG(("=X= %s: returning as %d elements", func, count));
     EXTEND(SP, count);
 
     int num = 0;
-    HIter hiter;
-    for (hiter_reset(&hiter, list);
-         hiter_more(&hiter);
-         hiter_next(&hiter)) {
-      HNode* node = hiter_fetch(&hiter);
+    for (int j = 0; j < list->ulen; ++j) {
+      HNode* node = &list->data[j];
       ++num;
 
-      const char* s = node->name;
+      const char* s = node->header->name;
       GLOG(("=X= %s: returning %2d - str [%s]", func, num, s));
       PUSHs(sv_2mortal(newSVpv(s, 0)));
     }
@@ -121,9 +143,9 @@ static void return_hlist(pTHX_   HList* list, const char* func, int want) {
 }
 
 /*
- * Given an SList, return all of its nodes to Perl.
+ * Given an PList, return all of its nodes to Perl.
  */
-static void return_slist(pTHX_   SList* list, const char* func, int want) {
+static void return_plist(pTHX_   PList* list, const char* func, int want) {
 
   dSP;
 
@@ -132,15 +154,16 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
     return;
   }
 
-  int count = slist_size(list);
+  int count = plist_size(list);
+
   if (count <= 0) {
     if (want == G_ARRAY) {
-      GLOG(("=X= %s: slist is empty, wantarray => 0", func));
+      GLOG(("=X= %s: plist is empty, wantarray => 0", func));
       EXTEND(SP, 1);
       PUSHs(sv_2mortal(newSViv(0)));
       PUTBACK;
     } else {
-      GLOG(("=X= %s: slist is empty, returning nothing", func));
+      GLOG(("=X= %s: plist is empty, returning nothing", func));
     }
     return;
   }
@@ -149,23 +172,20 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
 
   if (want == G_SCALAR) {
     GLOG(("=X= %s: returning as single string", func));
+    EXTEND( SP, 1 );
 
-    char ret[1024]; // TODO
+    char rstr[1024]; // TODO
     int rpos = 0;
     int num = 0;
-    SIter siter;
-    for (siter_reset(&siter, list);
-         siter_more(&siter);
-         siter_next(&siter)) {
-      SNode* node = siter_fetch(&siter);
+    for (int j = 0; j < list->ulen; ++j) {
+      PNode* node = &list->data[j];
       ++num;
 
       /* handle returning one value,
          useful when storing an object
       */
       if ( count == 1 ) {
-        EXTEND( SP, 1 );
-        PUSHs( (SV*)node->obj );
+        PUSHs( (SV*)node->ptr );
         break;
       }
 
@@ -173,23 +193,22 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
          useful for full header strings
       */
       STRLEN len;
-      char* str = SvPV( (SV*)node->obj, len );
+      char* str = SvPV( (SV*)node->ptr, len );
       GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
       if (rpos > 0) {
-        ret[rpos++] = ',';
-        ret[rpos++] = ' ';
+        rstr[rpos++] = ',';
+        rstr[rpos++] = ' ';
       }
 
-      memcpy(ret + rpos, str, len);
+      memcpy(rstr + rpos, str, len);
       rpos += len;
 
     }
 
     /* if we concatenated, return it */
     if ( count > 1 ) {
-      ret[rpos] = '\0';
-      EXTEND(SP, 1);
-      PUSHs(sv_2mortal(newSVpv(ret, rpos)));
+      rstr[rpos] = '\0';
+      PUSHs(sv_2mortal(newSVpv(rstr, rpos)));
     }
 
     PUTBACK;
@@ -199,14 +218,11 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
     GLOG(("=X= %s: returning as %d elements", func, count));
     EXTEND(SP, count);
     int num = 0;
-    SIter siter;
-    for (siter_reset(&siter, list);
-         siter_more(&siter);
-         siter_next(&siter)) {
-      SNode* node = siter_fetch(&siter);
+    for (int j = 0; j < list->ulen; ++j) {
+      PNode* node = &list->data[j];
       ++num;
 
-      PUSHs( (SV*)node->obj );
+      PUSHs( (SV*)node->ptr );
     }
 
     PUTBACK;
@@ -214,7 +230,7 @@ static void return_slist(pTHX_   SList* list, const char* func, int want) {
 }
 
 
-MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
+MODULE = HTTP::Headers::Fast::XS        PACKAGE = HTTP::Headers::Fast::XS
 PROTOTYPES: DISABLE
 
 BOOT:
@@ -250,6 +266,7 @@ new( SV* klass, ... )
 
     hash = newHV();
     list = hlist_create();
+    GLOG(("=X= @@@ new(%p|%d)", list, hlist_size(list)));
 
     if ( !list )
       croak("Could not initialize HList list object");
@@ -272,9 +289,11 @@ new( SV* klass, ... )
 
         pval = ST(j++);
         ckey = SvPV_nolen(pkey);
-        set_value(aTHX_  list, ctrans, 0, ckey, pval);
+        GLOG(("=X= Will set [%s] to [%s]", ckey, SvPV_nolen(pval)));
+        set_value(aTHX_  list, ctrans, ckey, pval);
     }
 
+    GLOG(("=X= Will bless new object"));
     self = newRV_noinc( (SV*)hash );
     RETVAL = sv_bless( self, gv_stashpv( SvPV_nolen(klass), 0 ) );
 
@@ -301,18 +320,12 @@ clone( SV* self )
       croak("Could not initialize HList list object");
 
     /* Clone the SVs into new ones */
-    HIter hiter;
-    for (hiter_reset(&hiter, list);
-         hiter_more(&hiter);
-         hiter_next(&hiter)) {
-      HNode* hnode = hiter_fetch(&hiter);
-
-      SIter siter;
-      for (siter_reset(&siter, hnode->slist);
-           siter_more(&siter);
-           siter_next(&siter)) {
-        SNode* snode = siter_fetch(&siter);
-        snode->obj = newSVsv( (SV*)snode->obj );
+    for (int j = 0; j < list->ulen; ++j) {
+      HNode* hnode = &list->data[j];
+      PList* plist = hnode->values;
+      for (int k = 0; k < plist->ulen; ++k) {
+        PNode* pnode = &plist->data[k];
+        pnode->ptr = newSVsv( (SV*)pnode->ptr );
       }
     }
 
@@ -340,18 +353,12 @@ DESTROY(SV* self, ...)
     h = fetch_hlist(aTHX_  self);
     GLOG(("=X= @@@ destroy(%p|%d)", h, hlist_size(h)));
 
-    HIter hiter;
-    for (hiter_reset(&hiter, h);
-         hiter_more(&hiter);
-         hiter_next(&hiter)) {
-      HNode* hnode = hiter_fetch(&hiter);
-
-      SIter siter;
-      for (siter_reset(&siter, hnode->slist);
-           siter_more(&siter);
-           siter_next(&siter)) {
-        SNode* snode = siter_fetch(&siter);
-        sv_2mortal( (SV*) snode->obj );
+    for (int j = 0; j < h->ulen; ++j) {
+      HNode* hn = &h->data[j];
+      PList* pl = hn->values;
+      for (int k = 0; k < pl->ulen; ++k) {
+        PNode* pn = &pl->data[k];
+        sv_2mortal( (SV*) pn->ptr );
       }
     }
 
@@ -420,9 +427,8 @@ init_header(SV* self, ...)
     ckey = SvPV(pkey, len);
     pval = ST(2);
 
-    n = hlist_get_header(h, ctrans, n, ckey);
-    if (!n) {
-      n = set_value(aTHX_  h, ctrans, n, ckey, pval);
+    if (!hlist_get(h, ckey)) {
+      set_value(aTHX_  h, ctrans, ckey, pval);
     }
 
 #
@@ -464,7 +470,7 @@ push_header(SV* self, ...)
         pval = ST(j++);
 
         ckey = SvPV(pkey, len);
-        n = set_value(aTHX_  h, ctrans, n, ckey, pval);
+        set_value(aTHX_  h, ctrans, ckey, pval);
     }
 
 
@@ -501,10 +507,10 @@ header(SV* self, ...)
       if (argc == 1) {
         pkey = ST(1);
         ckey = SvPV(pkey, len);
-        n = hlist_get_header(h, ctrans, n, ckey);
-        if (n && slist_size(n->slist) > 0) {
+        HNode* n = hlist_get(h, ckey);
+        if (n && plist_size(n->values) > 0) {
           PUTBACK;
-          return_slist(aTHX_   n->slist, "header1", GIMME_V);
+          return_plist(aTHX_   n->values, "header1", GIMME_V);
           SPAGAIN;
         }
         break;
@@ -529,26 +535,25 @@ header(SV* self, ...)
 
           ckey = SvPV(pkey, len);
           int clear = 0;
-          if (! hlist_get_header(seen, ctrans, 0, ckey)) {
+          if (! hlist_get(seen, ckey)) {
             clear = 1;
-            hlist_add_header(seen, ctrans, 0, ckey, 0);
+            hlist_add(seen, ckey, 0);
           }
 
-          n = hlist_get_header(h, ctrans, n, ckey);
+          HNode* n = hlist_get(h, ckey);
           if (n) {
-            if (j > argc && slist_size(n->slist) > 0) {
+            if (j > argc && plist_size(n->values) > 0) {
               /* Last value, return its current contents */
               PUTBACK;
-              return_slist(aTHX_   n->slist, "header2", GIMME_V);
+              return_plist(aTHX_   n->values, "header2", GIMME_V);
               SPAGAIN;
             }
             if (clear) {
-              slist_clear(n->slist);
+              plist_clear(n->values);
             }
           }
 
-          n = set_value(aTHX_  h, ctrans, n, ckey, pval);
-          n = 0;
+          set_value(aTHX_  h, ctrans, ckey, pval);
       }
       hlist_destroy(seen);
       break;
@@ -583,22 +588,22 @@ remove_header(SV* self, ...)
       pkey = ST(j);
       ckey = SvPV(pkey, len);
 
-      n = hlist_get_header(h, ctrans, n, ckey);
-      if (! n) {
+      HNode* n = hlist_get(h, ckey);
+      if (!n) {
         continue;
       }
 
-      size = slist_size(n->slist);
+      size = plist_size(n->values);
       if (size > 0) {
         total += size;
         if (GIMME_V == G_ARRAY) {
           PUTBACK;
-          return_slist(aTHX_   n->slist, "remove_header", G_ARRAY);
+          return_plist(aTHX_   n->values, "remove_header", G_ARRAY);
           SPAGAIN;
         }
       }
 
-      n = hlist_del_header(h, ctrans, 0, ckey);
+      hlist_del(h, ckey);
       GLOG(("=X= remove_header: deleted key [%s]", ckey));
     }
 
@@ -607,3 +612,21 @@ remove_header(SV* self, ...)
       EXTEND(SP, 1);
       PUSHs(sv_2mortal(newSViv(total)));
     }
+
+
+void
+_as_string(SV* self, int sort, const char* endl)
+  PREINIT:
+    HList* h = 0;
+
+  PPCODE:
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ as_string(%p|%d) %d - [%s]", h, hlist_size(h), sort, endl));
+
+    if (sort) {
+      hlist_sort(h);
+    }
+    char str[10240]; // TODO
+    int pos = format_all(aTHX_ h, str, endl);
+    EXTEND(SP, 1);
+    PUSHs(sv_2mortal(newSVpv(str, pos)));

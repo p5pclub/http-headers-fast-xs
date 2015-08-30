@@ -4,63 +4,77 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef GMEM_CHECK
-
-#define GMEM_NEW(scalar, type, size) \
+#define _GMEM_NEW(scalar, type, size) \
   do { \
     scalar = (type) malloc(size); \
   } while (0)
+#define _GMEM_REALLOC(scalar, type, osize, nsize) \
+  do { \
+    scalar = (type) realloc(scalar, nsize); \
+  } while (0)
+#define _GMEM_DEL(scalar, type, size) \
+  do { \
+    free(scalar); \
+    scalar = 0; \
+  } while (0)
+
+#if !defined(GMEM_CHECK) || GMEM_CHECK < 1
+
+#define GMEM_NEW(scalar, type, size)             _GMEM_NEW(scalar, type, size)
+#define GMEM_REALLOC(scalar, type, osize, nsize) _GMEM_REALLOC(scalar, type, osize, nsize)
+#define GMEM_DEL(scalar, type, size)             _GMEM_DEL(scalar, type, size)
+
 #define GMEM_NEWARR(array, type, count, size)  \
   do { \
     array = (type) calloc(count, size); \
   } while (0)
-#define GMEM_DEL(scalar, type, size) \
-  do { \
-    free(scalar); \
-    scalar = 0; \
-} while (0)
 #define GMEM_DELARR(array, type, count, size) \
   do { \
     free(array); \
     array = 0; \
 } while (0)
-#define GMEM_STRNEW(tgt, src, len, ret) \
+
+#define GMEM_NEWSTR(tgt, src, len, ret) \
   do { \
     tgt = 0; \
     if (!src) { \
       ret = 0; \
       break; \
     } \
-    int l = len <=0 ? strlen(src) + 1 : len; \
-    GMEM_NEW(tgt, char*, l); \
+    int l = len <= 0 ? strlen(src) + 1 : len; \
+    _GMEM_NEW(tgt, char*, l); \
     memcpy(tgt, src, l); \
     ret = l; \
   } while (0)
-#define GMEM_STRDEL(str, len) \
+#define GMEM_DELSTR(str, len) \
   do { \
     if (!str) break; \
-    int l = len <=0 ? strlen(str) + 1 : len; \
-    GMEM_DEL(str, char*, l); \
-    str = 0; \
+    int l = len <= 0 ? strlen(str) + 1 : len; \
+    _GMEM_DEL(str, char*, l); \
   } while (0)
 
 #else
 
 #define GMEM_NEW(scalar, type, size) \
   do { \
-    scalar = (type) malloc(size); \
-    gmem_new_called(__FILE__, __LINE__, scalar, size, 1); \
+    _GMEM_NEW(scalar, type, size); \
+    gmem_new_called(__FILE__, __LINE__, scalar, 1, size); \
+  } while (0)
+#define GMEM_REALLOC(scalar, type, osize, nsize) \
+  do { \
+    gmem_del_called(__FILE__, __LINE__, scalar, 1, osize); \
+    _GMEM_REALLOC(scalar, type, osize, nsize); \
+    gmem_new_called(__FILE__, __LINE__, scalar, 1, nsize); \
+  } while (0)
+#define GMEM_DEL(scalar, type, size) \
+  do { \
+    gmem_del_called(__FILE__, __LINE__, scalar, 1, size); \
+    _GMEM_DEL(scalar, type, size); \
   } while (0)
 #define GMEM_NEWARR(array, type, count, size) \
   do { \
     array = (type) calloc(count, size); \
     gmem_new_called(__FILE__, __LINE__, array, count, size); \
-  } while (0)
-#define GMEM_DEL(scalar, type, size) \
-  do { \
-    gmem_del_called(__FILE__, __LINE__, scalar, size, 1); \
-    free(scalar); \
-    scalar = 0; \
   } while (0)
 #define GMEM_DELARR(array, type, count, size)   \
   do { \
@@ -68,13 +82,13 @@
     free(array); \
     array = 0; \
   } while (0)
-#define GMEM_STRNEW(tgt, src, len, ret) \
+#define GMEM_NEWSTR(tgt, src, len, ret) \
   do { \
-    ret = gmem_strnew(&tgt, src, len); \
+    ret = gmem_strnew(__FILE__, __LINE__, &tgt, src, len);   \
   } while (0)
-#define GMEM_STRDEL(str, len) \
+#define GMEM_DELSTR(str, len) \
   do { \
-    gmem_strdel(&str, len); \
+    gmem_strdel(__FILE__, __LINE__, &str, len);   \
   } while (0)
 
 
@@ -92,12 +106,16 @@ int gmem_del_called(const char* file,
                     int count,
                     long size);
 
-int gmem_strnew(char** tgt,
+int gmem_strnew(const char* file,
+                int line,
+                char** tgt,
                 const char* src,
                 int len);
-int gmem_strdel(char** str,
+int gmem_strdel(const char* file,
+                int line,
+                char** str,
                 int len);
 
-#endif // #ifndef GMEM_CHECK
+#endif // #if !defined(GMEM_CHECK) || GMEM_CHECK < 1
 
 #endif

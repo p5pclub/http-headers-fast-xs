@@ -167,7 +167,7 @@ ok(j($h->header_field_names), "Date");
 ok($h->header("Date") =~ /^[A-Z][a-z][a-z], \d\d .* GMT$/);
 {
     my $off = time - $h->date;
-    ok($off == 0 || $off == 1); 
+    ok($off == 0 || $off == 1);
 }
 
 if ($] < 5.006) {

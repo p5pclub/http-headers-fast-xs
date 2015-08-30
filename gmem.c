@@ -4,7 +4,7 @@
 
 int gmem_unused = 0;
 
-#ifdef GMEM_CHECK
+#if defined(GMEM_CHECK) && GMEM_CHECK >= 1
 
 long gmem_new = 0;
 long gmem_del = 0;
@@ -22,7 +22,7 @@ static void gmem_init(void) {
   gmem_inited = 1;
   gmem_new = gmem_del = 0;
 
-#if GMEM_CHECK >= 1
+#if defined(GMEM_CHECK) && GMEM_CHECK >= 1
   fprintf(stderr, "=== MEM BEG %ld %ld ===\n", gmem_new, gmem_del);
 #endif
   atexit(gmem_fini);
@@ -33,7 +33,7 @@ static void gmem_fini(void) {
     return ;
   }
 
-#if GMEM_CHECK >= 1
+#if defined(GMEM_CHECK) && GMEM_CHECK >= 1
   fprintf(stderr, "=== MEM END %ld %ld ===\n", gmem_new, gmem_del);
   if (gmem_new == gmem_del) {
     fprintf(stderr, "=== MEM OK ===\n");
@@ -60,7 +60,7 @@ int gmem_new_called(const char* file,
   }
 
   long total = size * count;
-#if GMEM_CHECK >= 2
+#if defined(GMEM_CHECK) && GMEM_CHECK >= 2
   fprintf(stderr, "=== MEM NEW %s %d %p %d %ld %ld ===\n",
           file, line, var, count, size, total);
 #endif
@@ -87,7 +87,7 @@ int gmem_del_called(const char* file,
   }
 
   long total = size * count;
-#if GMEM_CHECK >= 2
+#if defined(GMEM_CHECK) && GMEM_CHECK >= 2
   fprintf(stderr, "=== MEM DEL %s %d %p %d %ld %ld ===\n",
           file, line, var, count, size, total);
 #endif
@@ -95,7 +95,9 @@ int gmem_del_called(const char* file,
   return total;
 }
 
-int gmem_strnew(char** tgt,
+int gmem_strnew(const char* file,
+                int line,
+                char** tgt,
                 const char* src,
                 int len) {
   if (!tgt) {
@@ -108,12 +110,15 @@ int gmem_strnew(char** tgt,
   if (len <= 0) {
     len = strlen(src) + 1;
   }
-  GMEM_NEW(*tgt, char*, len);
+  _GMEM_NEW(*tgt, char*, len);
   memcpy(*tgt, src, len);
+  gmem_new_called(file, line, *tgt, len, 1);
   return len;
 }
 
-int gmem_strdel(char** str,
+int gmem_strdel(const char* file,
+                int line,
+                char** str,
                 int len) {
   if (!str || !*str) {
     return 0;
@@ -121,9 +126,10 @@ int gmem_strdel(char** str,
   if (len <= 0) {
     len = strlen(*str) + 1;
   }
-  GMEM_DEL(*str, char*, len);
+  gmem_del_called(file, line, *str, len, 1);
+  _GMEM_DEL(*str, char*, len);
   *str = 0;
   return len;
 }
 
-#endif // #ifdef GMEM_CHECK
+#endif // #if defined(GMEM_CHECK) && GMEM_CHECK >= 1
