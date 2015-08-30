@@ -89,7 +89,7 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     if (h == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
-    return newSVsv(*h);
+    return *h;
 }
 
 void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
@@ -141,7 +141,7 @@ void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
         val = *val_0;
     }
 
-    hv_store(self, field, len, newSVsv(val), 0);
+    hv_store(self, field, len, SvREFCNT_inc(newSVsv(val)), 0);
 }
 
 int put_array_values_on_perl_stack(pTHX_ AV *array) {
@@ -345,7 +345,7 @@ header(SV *self, ...)
             }
         } else {
             /* return $old[0] */
-            PUSHs(sv_2mortal(value));
+            PUSHs(sv_2mortal(newSVsv(value)));
             XSRETURN(1);
         }
 
