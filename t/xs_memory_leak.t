@@ -34,10 +34,7 @@ is( RefCounter->ref_count, 0, 'no leak' );
     my @val = $h->header('foo');
     is_deeply( \@val, \@obj, 'objects returned' );
 }
-TODO: {
-    local $TODO = 'This needs to be fixed';
-    is( RefCounter->ref_count, 0, 'no leak' );
-}
+is( RefCounter->ref_count, 0, 'no leak' );
 
 {
     my @obj = ( RefCounter->new, RefCounter->new );
