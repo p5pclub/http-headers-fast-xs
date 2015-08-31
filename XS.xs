@@ -238,21 +238,17 @@ _standardize_field_name(SV *field)
 void
 push_header( SV *self, ... )
     PREINIT:
+        char   *field;
         int    i;
         STRLEN len;
-        char   *field;
-        SV     *val;
     CODE:
         if ( items % 2 == 0 )
             croak("You must provide key/value pairs");
 
         for ( i = 1; i < items; i += 2 ) {
             field = SvPV(ST(i), len);
-            val   = newSVsv( ST( i + 1 ) );
-
             handle_standard_case(aTHX_ field, len);
-
-            push_header_value(aTHX_ (HV *) SvRV(self), field, len, val);
+            push_header_value(aTHX_ (HV *) SvRV(self), field, len, ST(i + 1));
        }
 
 void
