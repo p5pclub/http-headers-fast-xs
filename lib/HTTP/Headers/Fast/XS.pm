@@ -35,11 +35,11 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::as_string_without_sort;
 *HTTP::Headers::Fast::header_field_names =
     *HTTP::Headers::Fast::XS::header_field_names;
+*HTTP::Headers::Fast::scan =
+    *HTTP::Headers::Fast::XS::scan;
 
 # Implemented in Pure-Perl
 # (candidates to move to XS)
-*HTTP::Headers::Fast::scan =
-    *HTTP::Headers::Fast::XS::scan;
 *HTTP::Headers::Fast::_date_header =
     *HTTP::Headers::Fast::XS::_date_header;
 *HTTP::Headers::Fast::content_type =
@@ -120,18 +120,6 @@ sub _sort_field_names {
     return [ sort  { ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
                          || $a cmp $b
              } @$names ];
-}
-
-sub scan {
-    my ( $self, $sub ) = @_;
-    my @names = $self->_header_keys();
-    for my $key (@{ _sort_field_names(\@names) }) {
-        next if substr($key, 0, 1) eq '_';
-        my @vals = $self->header($key);
-        for my $val (@vals) {
-            $sub->( $standard_case{$key} || $key, $val );
-        }
-    }
 }
 
 sub _date_header {

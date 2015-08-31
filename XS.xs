@@ -787,3 +787,37 @@ as_string_without_sort(SV* self, ...)
     RETVAL = str;
 
   OUTPUT: RETVAL
+
+
+void
+scan(SV* self, SV* sub)
+  PREINIT:
+    HList* h = 0;
+
+  CODE:
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ scan(%p|%d)", h, hlist_size(h)));
+
+    hlist_sort(h);
+    for (int j = 0; j < h->ulen; ++j) {
+      HNode* hn = &h->data[j];
+      const char* header = hn->header->name;
+      SV* pheader = newSVpv(header, 0);
+      PList* pl = hn->values;
+      for (int k = 0; k < pl->ulen; ++k) {
+        PNode* pn = &pl->data[k];
+        SV* value = (SV*) pn->ptr;
+
+        ENTER;
+        SAVETMPS;
+
+        PUSHMARK(SP);
+        PUSHs( pheader );
+        PUSHs( value );
+        PUTBACK;
+        call_sv( sub, G_DISCARD );
+
+        FREETMPS;
+        LEAVE;
+      }
+    }
