@@ -158,7 +158,11 @@ static int fetch_translate(pTHX_ SV* self) {
   return trans;
 }
 
-static int format_all(pTHX_ HList* h, char* str, const char* endl) {
+static int format_all(pTHX_ HList* h, int sort, char* str, const char* endl) {
+  if (sort) {
+    hlist_sort(h);
+  }
+
   int pos = 0;
   for (int j = 0; j < h->ulen; ++j) {
     HNode* hn = &h->data[j];
@@ -743,19 +747,43 @@ remove_content_headers(SV* self, ...)
   OUTPUT: RETVAL
 
 
-void
-_as_string(SV* self, int sort, const char* endl)
+const char*
+as_string(SV* self, ...)
   PREINIT:
     HList* h = 0;
 
-  PPCODE:
+  CODE:
     h = fetch_hlist(aTHX_  self);
-    GLOG(("=X= @@@ as_string(%p|%d) %d", h, hlist_size(h), sort));
+    GLOG(("=X= @@@ as_string(%p|%d) %d", h, hlist_size(h), items));
 
-    if (sort) {
-      hlist_sort(h);
+    const char* cendl = "\n";
+    if ( items > 1 ) {
+      SV* pendl = ST(1);
+      cendl = SvPV_nolen(pendl);
     }
     char str[10240]; // TODO
-    int pos = format_all(aTHX_ h, str, endl);
-    EXTEND(SP, 1);
-    PUSHs(sv_2mortal(newSVpv(str, pos)));
+    int pos = format_all(aTHX_ h, 1, str, cendl);
+    RETVAL = str;
+
+  OUTPUT: RETVAL
+
+
+const char*
+as_string_without_sort(SV* self, ...)
+  PREINIT:
+    HList* h = 0;
+
+  CODE:
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ as_string_without_sort(%p|%d) %d", h, hlist_size(h), items));
+
+    const char* cendl = "\n";
+    if ( items > 1 ) {
+      SV* pendl = ST(1);
+      cendl = SvPV_nolen(pendl);
+    }
+    char str[10240]; // TODO
+    int pos = format_all(aTHX_ h, 0, str, cendl);
+    RETVAL = str;
+
+  OUTPUT: RETVAL

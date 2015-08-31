@@ -29,8 +29,10 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::remove_content_headers;
 *HTTP::Headers::Fast::_header_keys =
     *HTTP::Headers::Fast::XS::_header_keys;
-*HTTP::Headers::Fast::_as_string =
-    *HTTP::Headers::Fast::XS::_as_string;
+*HTTP::Headers::Fast::as_string =
+    *HTTP::Headers::Fast::XS::as_string;
+*HTTP::Headers::Fast::as_string_without_sort =
+    *HTTP::Headers::Fast::XS::as_string_without_sort;
 *HTTP::Headers::Fast::header_field_names =
     *HTTP::Headers::Fast::XS::header_field_names;
 
@@ -38,10 +40,6 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 # (candidates to move to XS)
 *HTTP::Headers::Fast::scan =
     *HTTP::Headers::Fast::XS::scan;
-*HTTP::Headers::Fast::as_string =
-    *HTTP::Headers::Fast::XS::as_string;
-*HTTP::Headers::Fast::as_string_without_sort =
-    *HTTP::Headers::Fast::XS::as_string_without_sort;
 *HTTP::Headers::Fast::_date_header =
     *HTTP::Headers::Fast::XS::_date_header;
 *HTTP::Headers::Fast::content_type =
@@ -134,20 +132,6 @@ sub scan {
             $sub->( $standard_case{$key} || $key, $val );
         }
     }
-}
-
-sub as_string {
-    my ( $self, $endl ) = @_;
-    $endl = "\n" unless defined $endl;
-
-    $self->_as_string(1, $endl);
-}
-
-sub as_string_without_sort {
-    my ( $self, $endl ) = @_;
-    $endl = "\n" unless defined $endl;
-
-    $self->_as_string(0, $endl);
 }
 
 sub _date_header {
