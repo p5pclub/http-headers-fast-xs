@@ -396,6 +396,25 @@ clear(SV* self, ...)
 # Get all the keys in an existing HList.
 #
 void
+header_field_names(SV* self)
+  PREINIT:
+    HList* h = 0;
+
+  PPCODE:
+    h = fetch_hlist(aTHX_  self);
+    GLOG(("=X= @@@ header_field_names(%p|%d), want %d",
+          h, hlist_size(h), GIMME_V));
+
+    hlist_sort(h);
+    PUTBACK;
+    return_hlist(aTHX_   h, "header_field_names", GIMME_V);
+    SPAGAIN;
+
+
+#
+# Get all the keys in an existing HList.
+#
+void
 _header_keys(SV* self)
   PREINIT:
     HList* h = 0;

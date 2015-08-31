@@ -31,11 +31,11 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::_header_keys;
 *HTTP::Headers::Fast::_as_string =
     *HTTP::Headers::Fast::XS::_as_string;
+*HTTP::Headers::Fast::header_field_names =
+    *HTTP::Headers::Fast::XS::header_field_names;
 
 # Implemented in Pure-Perl
 # (candidates to move to XS)
-*HTTP::Headers::Fast::header_field_names =
-    *HTTP::Headers::Fast::XS::header_field_names;
 *HTTP::Headers::Fast::scan =
     *HTTP::Headers::Fast::XS::scan;
 *HTTP::Headers::Fast::as_string =
@@ -122,14 +122,6 @@ sub _sort_field_names {
     return [ sort  { ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
                          || $a cmp $b
              } @$names ];
-}
-
-sub header_field_names {
-    my $self = shift;
-    my @names = $self->_header_keys();
-    return map $standard_case{$_} || $_, @{ _sort_field_names(\@names) }
-      if wantarray;
-    return @names // 0;
 }
 
 sub scan {
