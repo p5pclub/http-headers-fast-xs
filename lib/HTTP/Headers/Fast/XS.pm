@@ -69,59 +69,6 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 use 5.00800;
 use Carp ();
 
-# "Good Practice" order of HTTP message headers:
-#    - General-Headers
-#    - Request-Headers
-#    - Response-Headers
-#    - Entity-Headers
-
-my @general_headers = qw(
-  Cache-Control Connection Date Pragma Trailer Transfer-Encoding Upgrade
-  Via Warning
-);
-
-my @request_headers = qw(
-  Accept Accept-Charset Accept-Encoding Accept-Language
-  Authorization Expect From Host
-  If-Match If-Modified-Since If-None-Match If-Range If-Unmodified-Since
-  Max-Forwards Proxy-Authorization Range Referer TE User-Agent
-);
-
-my @response_headers = qw(
-  Accept-Ranges Age ETag Location Proxy-Authenticate Retry-After Server
-  Vary WWW-Authenticate
-);
-
-my @entity_headers = qw(
-  Allow Content-Encoding Content-Language Content-Length Content-Location
-  Content-MD5 Content-Range Content-Type Expires Last-Modified
-);
-
-my @header_order =
-  ( @general_headers, @request_headers, @response_headers, @entity_headers, );
-
-# Make alternative representations of @header_order.  This is used
-# for sorting and case matching.
-my %header_order;
-our %standard_case;
-
-{
-    my $i = 0;
-    for (@header_order) {
-        my $lc = lc $_;
-        $header_order{$_}  = ++$i;
-        $standard_case{$lc} = $_;
-    }
-}
-
-sub _sort_field_names {
-    my $names = shift;
-
-    return [ sort  { ( $header_order{$a} || 999 ) <=> ( $header_order{$b} || 999 )
-                         || $a cmp $b
-             } @$names ];
-}
-
 sub _date_header {
     require HTTP::Date;
     my ( $self, $header, $time ) = @_;
