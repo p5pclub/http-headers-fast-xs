@@ -110,9 +110,8 @@ void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
 }
 
 void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
-    SV  **h;
-    AV  *h_copy;
-    SV  **a_value;
+    AV  *array;
+    SV  **h, **array_elem;
     int i, top_index;
 
     h = hv_fetch( self, field, len, 1 );
@@ -122,20 +121,21 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
     if ( ! SvOK(*h) ) {
         *h = newRV_noinc( (SV *) newAV() );
     } else if ( ! SvROK(*h) || SvTYPE(SvRV(*h)) != SVt_PVAV || sv_isobject(*h) ) {
-        h_copy = av_make( 1, h );
-        *h = newRV_noinc( (SV *)h_copy );
+        array = newAV();
+        av_store(array, 0, *h); /* don't increment ref count */
+        *h = newRV_noinc((SV *) array);
     }
 
     if ( SvROK(val) && SvTYPE(SvRV(val)) == SVt_PVAV && !sv_isobject(val) ) {
-        h_copy = (AV *) SvRV(val);
-        top_index = av_len(h_copy);
+        array = (AV *) SvRV(val);
+        top_index = av_len(array);
 
         for ( i = 0; i <= top_index; i++ ) {
-            a_value = av_fetch( h_copy, i, 0 );
-            if (a_value == NULL)
+            array_elem = av_fetch(array, i, 0);
+            if (array_elem == NULL)
                 croak("av_fetch() failed. This should not happen.");
 
-            av_push( (AV *) SvRV(*h), newSVsv(*a_value) );
+            av_push( (AV *) SvRV(*h), newSVsv(*array_elem) );
         }
     } else {
         av_push( (AV *) SvRV(*h), newSVsv(val) );
