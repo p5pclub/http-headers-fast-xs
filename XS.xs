@@ -25,6 +25,68 @@ static void set_scalar(pTHX_  HList* h, int trans, const char* ckey, SV* pval);
 static void set_array (pTHX_  HList* h, int trans, const char* ckey, AV* pval);
 static void set_value (pTHX_  HList* h, int trans, const char* ckey, SV* pval);
 
+static int string_append(char* buf, int pos, const char* newl);
+static int string_cleanup(const char* str, char* buf, int len, const char* newl);
+
+
+static int string_append(char* buf, int pos, const char* newl) {
+  for (int k = 0; newl[k] != '\0'; ++k) {
+    buf[pos++] = newl[k];
+  }
+  return pos;
+}
+
+static int string_cleanup(const char* str, char* buf, int len, const char* newl) {
+  int pos = 0;
+  int last_nonblank = -1;
+  int saw_newline = 0;
+  for (int j = 0; str[j] != '\0'; ++j) {
+    if (pos >= len) {
+      break;
+    }
+    if (isspace(str[j])) {
+      if (saw_newline) {
+        // ignore
+      } else {
+        if (str[j] == '\n') {
+          pos = string_append(buf, pos, newl);
+          saw_newline = 1;
+          last_nonblank = pos-1;
+        } else {
+          buf[pos++] = str[j];
+        }
+      }
+    } else {
+      if (saw_newline) {
+        buf[pos++] = '\t';
+      }
+      buf[pos++] = str[j];
+      last_nonblank = pos-1;
+      saw_newline = 0;
+    }
+  }
+
+  if (! saw_newline) {
+    pos = string_append(buf, pos, newl);
+    last_nonblank = pos-1;
+  }
+  buf[++last_nonblank] = '\0';
+  return last_nonblank;
+
+  /*
+sub _process_newline {
+    local $_ = shift;
+    my $endl = shift;
+    # must handle header values with embedded newlines with care
+    s/\s+$//;        # trailing newlines and space must go
+    s/\n(\x0d?\n)+/\n/g;     # no empty lines
+    s/\n([^\040\t])/\n $1/g; # intial space for continuation
+    s/\n/$endl/g;    # substitute with requested line ending
+    $_;
+  */
+}
+
+
 static SV* clone_from(pTHX_  SV* klass, SV* self, HList* old_list) {
   HV* new_hash = newHV();
   if ( !new_hash ) {
@@ -105,8 +167,10 @@ static int format_all(pTHX_ HList* h, char* str, const char* endl) {
     for (int k = 0; k < pl->ulen; ++k) {
       PNode* pn = &pl->data[k];
       const char* value = SvPV_nolen( (SV*) pn->ptr );
-      GLOG(("=X= [%s] => [%s]", header, value));
-      pos += sprintf(str + pos, "%s: %s%s", header, value, endl);
+      char clean[10240];
+      int l = string_cleanup(value, clean, 10240, endl); // TODO
+      // GLOG(("=X= [%s] => [%s]", header, clean));
+      pos += sprintf(str + pos, "%s: %s", header, clean);
     }
   }
   str[pos] = '\0';
@@ -225,7 +289,7 @@ static void return_plist(pTHX_   PList* list, const char* func, int want) {
     GLOG(("=X= %s: returning as single string", func));
     EXTEND( SP, 1 );
 
-    char rstr[1024]; // TODO
+    char rstr[10240]; // TODO
     int rpos = 0;
     int num = 0;
     for (int j = 0; j < list->ulen; ++j) {
@@ -686,7 +750,7 @@ _as_string(SV* self, int sort, const char* endl)
 
   PPCODE:
     h = fetch_hlist(aTHX_  self);
-    GLOG(("=X= @@@ as_string(%p|%d) %d - [%s]", h, hlist_size(h), sort, endl));
+    GLOG(("=X= @@@ as_string(%p|%d) %d", h, hlist_size(h), sort));
 
     if (sort) {
       hlist_sort(h);

@@ -136,19 +136,6 @@ sub scan {
     }
 }
 
-### TODO: need to move this to XS so as_string will work properly
-### Unchanged but called from this module
-sub _process_newline {
-    local $_ = shift;
-    my $endl = shift;
-    # must handle header values with embedded newlines with care
-    s/\s+$//;        # trailing newlines and space must go
-    s/\n(\x0d?\n)+/\n/g;     # no empty lines
-    s/\n([^\040\t])/\n $1/g; # intial space for continuation
-    s/\n/$endl/g;    # substitute with requested line ending
-    $_;
-}
-
 sub as_string {
     my ( $self, $endl ) = @_;
     $endl = "\n" unless defined $endl;

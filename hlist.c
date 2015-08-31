@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,20 +39,16 @@ HList* hlist_clone(HList* hlist) {
     return 0;
   }
 
-  GLOG(("======== Cloning hlist %p", hlist));
+  GLOG(("=C= Cloning hlist %p", hlist));
   // hlist_dump(hlist, stderr);
   HList* p = hlist_create();
   p->flags = hlist->flags;
   for (int j = 0; j < hlist->ulen; ++j) {
-    GLOG(("======== Cloning header [%s]", hlist->data[j].header->name));
     hlist_grow(p);
     p->data[j].header = header_clone(hlist->data[j].header);
     p->data[j].values = plist_clone(hlist->data[j].values);
     ++p->ulen;
   }
-  GLOG(("======== Cloned hlist => %p", p));
-  // hlist_dump(p, stderr);
-  GLOG(("========"));
   return p;
 }
 
