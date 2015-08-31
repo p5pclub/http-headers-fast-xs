@@ -45,15 +45,12 @@ void handle_standard_case(pTHX_ char *field, int len) {
 
     translate_underscore(aTHX_ field, len);
 
-    /* make a copy to represent the original one */
+    /* make a copy to represent the original one and lc the original */
     orig = (char *) alloca(len + 1);
-
-    /* copy and lc */
     for ( i = 0; i < len; i++ ) {
-        orig[i] = field[i];
+        orig[i]  = field[i];
         field[i] = tolower( field[i] );
     }
-
     orig[len] = '\0';
 
     standard_case_val = hv_fetch(MY_CXT.standard_case, field, len, 1);
@@ -70,7 +67,6 @@ void handle_standard_case(pTHX_ char *field, int len) {
         if (word_boundary) {
             orig[i] = toupper( orig[i] );
         }
-
         word_boundary = !isWORDCHAR( orig[i] );
     }
 
@@ -90,6 +86,27 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
         croak("hv_fetch() failed. This should not happen.");
 
     return *h;
+}
+
+void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
+    SV **val_0;
+
+    /* if array has a single element, then store that element instead of the array */
+    if ( SvROK(val) ) {
+        if (!sv_isobject(val) &&
+            SvTYPE(SvRV(val)) == SVt_PVAV &&
+            av_len((AV *) SvRV(val)) == 0)
+        {
+            val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+            if (val_0 == NULL)
+                croak("av_fetch() failed. This should not happen.");
+
+            val = *val_0;
+        }
+        hv_store(self, field, len, newSVsv(val), 0);
+    } else {
+        hv_store(self, field, len, SvREFCNT_inc(newSVsv(val)), 0);
+    }
 }
 
 void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
@@ -122,27 +139,6 @@ void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
         }
     } else {
         av_push( (AV *) SvRV(*h), newSVsv(val) );
-    }
-}
-
-void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
-    SV **val_0;
-
-    /* if array has a single element, then store that element instead of the array */
-    if ( SvROK(val) ) {
-        if (!sv_isobject(val) &&
-            SvTYPE(SvRV(val)) == SVt_PVAV &&
-            av_len((AV *) SvRV(val)) == 0)
-        {
-            val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
-            if (val_0 == NULL)
-                croak("av_fetch() failed. This should not happen.");
-
-            val = *val_0;
-        }
-        hv_store(self, field, len, newSVsv(val), 0);
-    } else {
-        hv_store(self, field, len, SvREFCNT_inc(newSVsv(val)), 0);
     }
 }
 
@@ -285,7 +281,7 @@ header(SV *self, ...)
             handle_standard_case(aTHX_ field, len);
             value = get_header_value(aTHX_ self_hash, field, len);
 
-            if (value != NULL && !SvOK(ST(2))) {
+            if ( value != NULL && !SvOK(ST(2)) ) {
                 hv_delete(self_hash, field, len, G_DISCARD);
             } else {
                 set_header_value(aTHX_ self_hash, field, len, ST(2));
@@ -298,16 +294,15 @@ header(SV *self, ...)
 
             seen = newHV();
             for (arg = 1; arg < items; arg += 2) {
-                /* lc $field - but don't modify the original */
                 field = SvPV(args[arg], len);
-                handle_standard_case(aTHX_ field, len);
+                handle_standard_case(aTHX_ field, len); /* lc $field */
 
                 if ( !hv_exists(seen, field, len) ) {
                     hv_store(seen, field, len, newSViv(1), 0);
 
                     /* @old = $self->_header_set($field, shift) */
                     value = get_header_value(aTHX_ self_hash, field, len);
-                    if (value != NULL && !SvOK(args[arg + 1])) {
+                    if ( value != NULL && !SvOK(args[arg + 1]) ) {
                         hv_delete(self_hash, field, len, G_DISCARD);
                     } else {
                         set_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
@@ -326,7 +321,7 @@ header(SV *self, ...)
         if (value == NULL) {
             /* return wantarray ? () : undef */
             if (GIMME_V == G_ARRAY)
-                XSRETURN(0);
+                XSRETURN_EMPTY;
             else
                 XSRETURN_UNDEF;
         }
