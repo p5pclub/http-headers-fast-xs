@@ -57,4 +57,6 @@ void hlist_sort(HList* hlist);
 
 void hlist_dump(const HList* hlist, FILE* fp);
 
+void hlist_transfer_header(HList* from, int pos, HList* to);
+
 #endif

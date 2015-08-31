@@ -14,7 +14,7 @@ WriteMakefile(
     LIBS           => [''],
 #    DEFINE         => '-DGMEM_CHECK',
 #    DEFINE         => '-DGLOG_SHOW',
-    DEFINE         => '-DGMEM_CHECK -DGLOG_SHOW',
+#    DEFINE         => '-DGMEM_CHECK -DGLOG_SHOW',
     INC            => '-I.',
     OBJECT         => '$(O_FILES)',
 );

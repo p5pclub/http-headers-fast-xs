@@ -9,8 +9,12 @@ require HTTP::Headers::Fast;
 XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
 
 # Implemented in XS
+*HTTP::Headers::Fast::new =
+    *HTTP::Headers::Fast::XS::new;
 *HTTP::Headers::Fast::DESTROY =
     *HTTP::Headers::Fast::XS::DESTROY;
+*HTTP::Headers::Fast::clone =
+    *HTTP::Headers::Fast::XS::clone;
 *HTTP::Headers::Fast::header =
     *HTTP::Headers::Fast::XS::header;
 *HTTP::Headers::Fast::clear =
@@ -21,27 +25,23 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::init_header;
 *HTTP::Headers::Fast::remove_header =
     *HTTP::Headers::Fast::XS::remove_header;
-
-# Implemented in Pure-Perl
-# (candidates to move to XS)
-*HTTP::Headers::Fast::new =
-    *HTTP::Headers::Fast::XS::new;
 *HTTP::Headers::Fast::remove_content_headers =
     *HTTP::Headers::Fast::XS::remove_content_headers;
 *HTTP::Headers::Fast::_header_keys =
     *HTTP::Headers::Fast::XS::_header_keys;
+*HTTP::Headers::Fast::_as_string =
+    *HTTP::Headers::Fast::XS::_as_string;
+
+# Implemented in Pure-Perl
+# (candidates to move to XS)
 *HTTP::Headers::Fast::header_field_names =
     *HTTP::Headers::Fast::XS::header_field_names;
 *HTTP::Headers::Fast::scan =
     *HTTP::Headers::Fast::XS::scan;
-*HTTP::Headers::Fast::_as_string =
-    *HTTP::Headers::Fast::XS::_as_string;
 *HTTP::Headers::Fast::as_string =
     *HTTP::Headers::Fast::XS::as_string;
 *HTTP::Headers::Fast::as_string_without_sort =
     *HTTP::Headers::Fast::XS::as_string_without_sort;
-*HTTP::Headers::Fast::clone =
-    *HTTP::Headers::Fast::XS::clone;
 *HTTP::Headers::Fast::_date_header =
     *HTTP::Headers::Fast::XS::_date_header;
 *HTTP::Headers::Fast::content_type =
@@ -99,8 +99,6 @@ my @entity_headers = qw(
   Content-MD5 Content-Range Content-Type Expires Last-Modified
 );
 
-my %entity_header = map { $_ => 1 } @entity_headers;
-
 my @header_order =
   ( @general_headers, @request_headers, @response_headers, @entity_headers, );
 
@@ -116,16 +114,6 @@ our %standard_case;
         $header_order{$_}  = ++$i;
         $standard_case{$lc} = $_;
     }
-}
-
-sub remove_content_headers {
-    my $self = shift;
-    my $c = ref($self)->new;
-    for my $field (grep $entity_header{$_} || /^Content-/, $self->_header_keys()) {
-        my @values = $self->remove_header($field);
-        $c->header($field, \@values);
-    }
-    $c;
 }
 
 sub _sort_field_names {
@@ -156,6 +144,7 @@ sub scan {
     }
 }
 
+### TODO: need to move this to XS so as_string will work properly
 ### Unchanged but called from this module
 sub _process_newline {
     local $_ = shift;
@@ -167,26 +156,6 @@ sub _process_newline {
     s/\n/$endl/g;    # substitute with requested line ending
     $_;
 }
-
-#sub _as_string {
-#    my ($self, $endl, $fieldnames) = @_;
-#
-#    my @result;
-#    for my $key ( @$fieldnames ) {
-#        next if index($key, '_') == 0;
-#        my $field = $standard_case{$key} || $key;
-#        $field =~ s/^://;
-#        my @vals = $self->header($key);
-#        for my $val (@vals) {
-#            if ( index($val, "\n") >= 0 ) {
-#                $val = _process_newline($val, $endl);
-#            }
-#            push @result, $field . ': ' . $val;
-#        }
-#    }
-#
-#    join( $endl, @result, '' );
-#}
 
 sub as_string {
     my ( $self, $endl ) = @_;

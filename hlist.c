@@ -7,6 +7,7 @@
 #include "plist.h"
 #include "hlist.h"
 
+static void hlist_del_pos(HList* hlist, int pos, int clear);
 static void hlist_grow(HList* hlist);
 static int hlist_cmp(const void* v1, const void* v2);
 static HNode* hlist_lookup(HList* hlist, const char* name, int type, int add, int del);
@@ -38,7 +39,7 @@ HList* hlist_clone(HList* hlist) {
   }
 
   GLOG(("======== Cloning hlist %p", hlist));
-  hlist_dump(hlist, stderr);
+  // hlist_dump(hlist, stderr);
   HList* p = hlist_create();
   p->flags = hlist->flags;
   for (int j = 0; j < hlist->ulen; ++j) {
@@ -49,7 +50,7 @@ HList* hlist_clone(HList* hlist) {
     ++p->ulen;
   }
   GLOG(("======== Cloned hlist => %p", p));
-  hlist_dump(p, stderr);
+  // hlist_dump(p, stderr);
   GLOG(("========"));
   return p;
 }
@@ -152,6 +153,31 @@ void hlist_dump(const HList* hlist, FILE* fp) {
   fflush(fp);
 }
 
+void hlist_transfer_header(HList* from, int pos, HList* to)
+{
+  if (!from || !to) {
+    return;
+  }
+  if (pos >= hlist_size(from)) {
+    return;
+  }
+  hlist_grow(to);
+  to->data[to->ulen++] = from->data[pos];
+  hlist_del_pos(from, pos, 0);
+}
+
+
+static void hlist_del_pos(HList* hlist, int pos, int clear) {
+  HNode* n = &hlist->data[pos];
+  --hlist->ulen;
+  if (clear) {
+    header_clear(n->header);
+    plist_destroy(n->values);
+  }
+  for (int j = pos; j < hlist->ulen; ++j) {
+    hlist->data[j] = hlist->data[j+1];
+  }
+}
 
 static void hlist_grow(HList* hlist) {
   if (!hlist) {
@@ -224,12 +250,7 @@ static HNode* hlist_lookup(HList* hlist, const char* name, int type, int add, in
       if (!n) {
         break;
       }
-      --hlist->ulen;
-      header_clear(n->header);
-      plist_destroy(n->values);
-      for (int k = j; k < hlist->ulen; ++k) {
-        hlist->data[k] = hlist->data[k+1];
-      }
+      hlist_del_pos(hlist, j, 1);
       n = 0;
       break;
     }

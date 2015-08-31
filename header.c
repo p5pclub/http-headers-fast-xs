@@ -164,3 +164,32 @@ void header_dump(const Header* h, FILE* fp) {
   fprintf(fp, "]\n");
   fflush(fp);
 }
+
+int header_is_entity(const Header* h) {
+  if (HEADER_IS_ENTITY(h)) {
+    GLOG(("=C= header [%s] is entity (QUICK)", h->name));
+    return 1;
+  }
+
+  if (HEADER_IS_GENERAL(h) ||
+      HEADER_IS_REQUEST(h) ||
+      HEADER_IS_RESPONSE(h)) {
+    GLOG(("=C= header [%s] is not entity (QUICK)", h->name));
+    return 0;
+  }
+
+  const char* start = "content-";
+  for (int j = 0; start[j] != 0; ++j) {
+    if (h->name[j] == '\0') {
+      GLOG(("=C= header [%s] is not entity (EOS)", h->name));
+      return 0;
+    }
+    if (tolower(h->name[j]) != start[j]) {
+      GLOG(("=C= header [%s] is not entity (DIFF)", h->name));
+      return 0;
+    }
+  }
+
+  GLOG(("=C= header [%s] is entity (CMP)", h->name));
+  return 1;
+}
