@@ -43,7 +43,8 @@ HList* hlist_clone(HList* hlist) {
   // hlist_dump(hlist, stderr);
   HList* p = hlist_create();
   p->flags = hlist->flags;
-  for (int j = 0; j < hlist->ulen; ++j) {
+  int j;
+  for (j = 0; j < hlist->ulen; ++j) {
     hlist_grow(p);
     p->data[j].header = header_clone(hlist->data[j].header);
     p->data[j].values = plist_clone(hlist->data[j].values);
@@ -67,7 +68,8 @@ void hlist_clear(HList* hlist) {
     return;
   }
 
-  for (int j = 0; j < hlist->ulen; ++j) {
+  int j;
+  for (j = 0; j < hlist->ulen; ++j) {
     HNode* n = &hlist->data[j];
     header_clear(n->header);
     plist_destroy(n->values);
@@ -142,7 +144,8 @@ void hlist_dump(const HList* hlist, FILE* fp) {
     return;
   }
 
-  for (int j = 0; j < hlist->ulen; ++j) {
+  int j;
+  for (j = 0; j < hlist->ulen; ++j) {
     HNode* n = &hlist->data[j];
     header_dump(n->header, fp);
     plist_dump(n->values, fp);
@@ -171,7 +174,8 @@ static void hlist_del_pos(HList* hlist, int pos, int clear) {
     header_clear(n->header);
     plist_destroy(n->values);
   }
-  for (int j = pos; j < hlist->ulen; ++j) {
+  int j;
+  for (j = pos; j < hlist->ulen; ++j) {
     hlist->data[j] = hlist->data[j+1];
   }
 }

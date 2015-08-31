@@ -32,7 +32,8 @@ PList* plist_clone(PList* plist) {
   }
 
   PList* p = plist_create();
-  for (int j = 0; j < plist->ulen; ++j) {
+  int j;
+  for (j = 0; j < plist->ulen; ++j) {
     plist_grow(p);
     p->data[j].ptr = plist->data[j].ptr;
     ++p->ulen;
@@ -85,7 +86,8 @@ void plist_dump(const PList* plist, FILE* fp)
     return;
   }
 
-  for (int j = 0; j < plist->ulen; ++j) {
+  int j;
+  for (j = 0; j < plist->ulen; ++j) {
     fprintf(fp, "%4d: %p\n", j, plist->data[j].ptr);
   }
   fflush(fp);

@@ -179,7 +179,8 @@ int header_is_entity(const Header* h) {
   }
 
   const char* start = "content-";
-  for (int j = 0; start[j] != 0; ++j) {
+  int j;
+  for (j = 0; start[j] != 0; ++j) {
     if (h->name[j] == '\0') {
       GLOG(("=C= header [%s] is not entity (EOS)", h->name));
       return 0;

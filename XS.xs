@@ -30,7 +30,8 @@ static int string_cleanup(const char* str, char* buf, int len, const char* newl)
 
 
 static int string_append(char* buf, int pos, const char* newl) {
-  for (int k = 0; newl[k] != '\0'; ++k) {
+  int k;
+  for (k = 0; newl[k] != '\0'; ++k) {
     buf[pos++] = newl[k];
   }
   return pos;
@@ -40,7 +41,8 @@ static int string_cleanup(const char* str, char* buf, int len, const char* newl)
   int pos = 0;
   int last_nonblank = -1;
   int saw_newline = 0;
-  for (int j = 0; str[j] != '\0'; ++j) {
+  int j;
+  for (j = 0; str[j] != '\0'; ++j) {
     if (pos >= len) {
       break;
     }
@@ -105,11 +107,13 @@ static SV* clone_from(pTHX_  SV* klass, SV* self, HList* old_list) {
       croak("Could not clone HList object");
     }
 
+    int j, k;
+
     /* Clone the SVs into new ones */
-    for (int j = 0; j < old_list->ulen; ++j) {
+    for (j = 0; j < old_list->ulen; ++j) {
       HNode* hnode = &old_list->data[j];
       PList* plist = hnode->values;
-      for (int k = 0; k < plist->ulen; ++k) {
+      for (k = 0; k < plist->ulen; ++k) {
         PNode* pnode = &plist->data[k];
         pnode->ptr = newSVsv( (SV*)pnode->ptr );
       }
@@ -164,11 +168,13 @@ static int format_all(pTHX_ HList* h, int sort, char* str, const char* endl) {
   }
 
   int pos = 0;
-  for (int j = 0; j < h->ulen; ++j) {
+  int j;
+  for (j = 0; j < h->ulen; ++j) {
     HNode* hn = &h->data[j];
     const char* header = hn->header->name;
     PList* pl = hn->values;
-    for (int k = 0; k < pl->ulen; ++k) {
+    int k;
+    for (k = 0; k < pl->ulen; ++k) {
       PNode* pn = &pl->data[k];
       const char* value = SvPV_nolen( (SV*) pn->ptr );
       char clean[10240];
@@ -249,7 +255,8 @@ static void return_hlist(pTHX_   HList* list, const char* func, int want) {
     EXTEND(SP, count);
 
     int num = 0;
-    for (int j = 0; j < list->ulen; ++j) {
+    int j;
+    for (j = 0; j < list->ulen; ++j) {
       HNode* node = &list->data[j];
       ++num;
 
@@ -296,7 +303,8 @@ static void return_plist(pTHX_   PList* list, const char* func, int want) {
     char rstr[10240]; // TODO
     int rpos = 0;
     int num = 0;
-    for (int j = 0; j < list->ulen; ++j) {
+    int j;
+    for (j = 0; j < list->ulen; ++j) {
       PNode* node = &list->data[j];
       ++num;
 
@@ -337,7 +345,8 @@ static void return_plist(pTHX_   PList* list, const char* func, int want) {
     GLOG(("=X= %s: returning as %d elements", func, count));
     EXTEND(SP, count);
     int num = 0;
-    for (int j = 0; j < list->ulen; ++j) {
+    int j;
+    for (j = 0; j < list->ulen; ++j) {
       PNode* node = &list->data[j];
       ++num;
 
@@ -429,15 +438,17 @@ void
 DESTROY(SV* self, ...)
   PREINIT:
     HList* h = 0;
+    int    j;
+    int    k;
 
   CODE:
     h = fetch_hlist(aTHX_  self);
     GLOG(("=X= @@@ destroy(%p|%d)", h, hlist_size(h)));
 
-    for (int j = 0; j < h->ulen; ++j) {
+    for (j = 0; j < h->ulen; ++j) {
       HNode* hn = &h->data[j];
       PList* pl = hn->values;
-      for (int k = 0; k < pl->ulen; ++k) {
+      for (k = 0; k < pl->ulen; ++k) {
         PNode* pn = &pl->data[k];
         sv_2mortal( (SV*) pn->ptr );
       }
@@ -762,7 +773,7 @@ as_string(SV* self, ...)
       cendl = SvPV_nolen(pendl);
     }
     char str[10240]; // TODO
-    int pos = format_all(aTHX_ h, 1, str, cendl);
+    format_all(aTHX_ h, 1, str, cendl);
     RETVAL = str;
 
   OUTPUT: RETVAL
@@ -783,7 +794,7 @@ as_string_without_sort(SV* self, ...)
       cendl = SvPV_nolen(pendl);
     }
     char str[10240]; // TODO
-    int pos = format_all(aTHX_ h, 0, str, cendl);
+    format_all(aTHX_ h, 0, str, cendl);
     RETVAL = str;
 
   OUTPUT: RETVAL
@@ -793,18 +804,20 @@ void
 scan(SV* self, SV* sub)
   PREINIT:
     HList* h = 0;
+    int    j;
+    int    k;
 
   CODE:
     h = fetch_hlist(aTHX_  self);
     GLOG(("=X= @@@ scan(%p|%d)", h, hlist_size(h)));
 
     hlist_sort(h);
-    for (int j = 0; j < h->ulen; ++j) {
+    for (j = 0; j < h->ulen; ++j) {
       HNode* hn = &h->data[j];
       const char* header = hn->header->name;
       SV* pheader = newSVpv(header, 0);
       PList* pl = hn->values;
-      for (int k = 0; k < pl->ulen; ++k) {
+      for (k = 0; k < pl->ulen; ++k) {
         PNode* pn = &pl->data[k];
         SV* value = (SV*) pn->ptr;
 
