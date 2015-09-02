@@ -85,28 +85,25 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     if (h == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
-    return *h;
+    return newSVsv(*h);
 }
 
 void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
     SV **val_0;
 
     /* if array has a single element, then store that element instead of the array */
-    if ( SvROK(val) ) {
-        if (!sv_isobject(val) &&
-            SvTYPE(SvRV(val)) == SVt_PVAV &&
-            av_len((AV *) SvRV(val)) == 0)
-        {
-            val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
-            if (val_0 == NULL)
-                croak("av_fetch() failed. This should not happen.");
+    if (SvROK(val) &&
+        !sv_isobject(val) &&
+        SvTYPE(SvRV(val)) == SVt_PVAV &&
+        av_len((AV *) SvRV(val)) == 0)
+    {
+        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+        if (val_0 == NULL)
+            croak("av_fetch() failed. This should not happen.");
 
-            val = *val_0;
-        }
-        hv_store(self, field, len, newSVsv(val), 0);
-    } else {
-        hv_store(self, field, len, SvREFCNT_inc(newSVsv(val)), 0);
+        val = *val_0;
     }
+    hv_store(self, field, len, newSVsv(val), 0);
 }
 
 void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
