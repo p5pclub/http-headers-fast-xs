@@ -9,65 +9,6 @@
 #include "header.h"
 #include "util.h"
 
-int string_append(char* buf, int pos, const char* str) {
-  int k;
-  for (k = 0; str[k] != '\0'; ++k) {
-    buf[pos++] = str[k];
-  }
-  return pos;
-}
-
-int string_cleanup(const char* str, char* buf, int len, const char* newl) {
-  int pos = 0;
-  int last_nonblank = -1;
-  int saw_newline = 0;
-  int j;
-  for (j = 0; str[j] != '\0'; ++j) {
-    if (pos >= len) {
-      break;
-    }
-    if (isspace(str[j])) {
-      if (saw_newline) {
-        // ignore
-      } else {
-        if (str[j] == '\n') {
-          pos = string_append(buf, pos, newl);
-          saw_newline = 1;
-          last_nonblank = pos-1;
-        } else {
-          buf[pos++] = str[j];
-        }
-      }
-    } else {
-      if (saw_newline) {
-        buf[pos++] = '\t';
-      }
-      buf[pos++] = str[j];
-      last_nonblank = pos-1;
-      saw_newline = 0;
-    }
-  }
-
-  if (! saw_newline) {
-    pos = string_append(buf, pos, newl);
-    last_nonblank = pos-1;
-  }
-  buf[++last_nonblank] = '\0';
-  return last_nonblank;
-
-  /*
-sub _process_newline {
-    local $_ = shift;
-    my $endl = shift;
-    # must handle header values with embedded newlines with care
-    s/\s+$//;        # trailing newlines and space must go
-    s/\n(\x0d?\n)+/\n/g;     # no empty lines
-    s/\n([^\040\t])/\n $1/g; # intial space for continuation
-    s/\n/$endl/g;    # substitute with requested line ending
-    $_;
-  */
-}
-
 SV* clone_from(pTHX, SV* klass, SV* self, HList* old_list) {
   HV* new_hash = newHV();
   if ( !new_hash ) {
@@ -120,21 +61,6 @@ SV* clone_from(pTHX, SV* klass, SV* self, HList* old_list) {
   return retval;
 }
 
-void set_scalar(pTHX, HList* h, const char* ckey, SV* pval) {
-  hlist_add(h, ckey, newSVsv(pval));
-  GLOG(("=X= set scalar [%s] => [%s]", ckey, SvPV_nolen(pval)));
-}
-
-void set_array(pTHX, HList* h, const char* ckey, AV* pval) {
-  int count = av_len(pval) + 1;
-  int j;
-  for (j = 0; j < count; ++j) {
-    GLOG(("=X= set array %2d [%s]", j, ckey));
-    SV** svp = av_fetch(pval, j, 0);
-    set_value(aTHX, h, ckey, *svp);
-  }
-}
-
 void set_value(pTHX, HList* h, const char* ckey, SV* pval) {
   if ( ! SvOK(pval) ) {
     GLOG(("=X= deleting [%s]", ckey));
@@ -157,29 +83,19 @@ void set_value(pTHX, HList* h, const char* ckey, SV* pval) {
   set_array(aTHX, h, ckey, array);
 }
 
-int format_all(pTHX, HList* h, int sort, char* str, const char* endl) {
-  if (sort) {
-    hlist_sort(h);
-  }
+void set_scalar(pTHX, HList* h, const char* ckey, SV* pval) {
+  hlist_add(h, ckey, newSVsv(pval));
+  GLOG(("=X= set scalar [%s] => [%s]", ckey, SvPV_nolen(pval)));
+}
 
-  int pos = 0;
+void set_array(pTHX, HList* h, const char* ckey, AV* pval) {
+  int count = av_len(pval) + 1;
   int j;
-  for (j = 0; j < h->ulen; ++j) {
-    HNode* hn = &h->data[j];
-    const char* header = hn->header->name;
-    PList* pl = hn->values;
-    int k;
-    for (k = 0; k < pl->ulen; ++k) {
-      PNode* pn = &pl->data[k];
-      const char* value = SvPV_nolen( (SV*) pn->ptr );
-      char clean[10240]; // TODO
-      string_cleanup(value, clean, 10240, endl);
-      // GLOG(("=X= [%s] => [%s]", header, clean));
-      pos += sprintf(str + pos, "%s: %s", header, clean);
-    }
+  for (j = 0; j < count; ++j) {
+    GLOG(("=X= set array %2d [%s]", j, ckey));
+    SV** svp = av_fetch(pval, j, 0);
+    set_value(aTHX, h, ckey, *svp);
   }
-  str[pos] = '\0';
-  return pos;
 }
 
 void return_hlist(pTHX, HList* list, const char* func, int want) {
@@ -305,4 +221,91 @@ void return_plist(pTHX, PList* list, const char* func, int want) {
 
     PUTBACK;
   }
+}
+
+int format_all(pTHX, HList* h, int sort, char* str, const char* endl) {
+  if (sort) {
+    hlist_sort(h);
+  }
+
+  int pos = 0;
+  int j;
+  for (j = 0; j < h->ulen; ++j) {
+    HNode* hn = &h->data[j];
+    const char* header = hn->header->name;
+    PList* pl = hn->values;
+    int k;
+    for (k = 0; k < pl->ulen; ++k) {
+      PNode* pn = &pl->data[k];
+      const char* value = SvPV_nolen( (SV*) pn->ptr );
+      char clean[10240]; // TODO
+      string_cleanup(value, clean, 10240, endl);
+      // GLOG(("=X= [%s] => [%s]", header, clean));
+      pos += sprintf(str + pos, "%s: %s", header, clean);
+    }
+  }
+  str[pos] = '\0';
+  return pos;
+}
+
+int string_append(char* buf, int pos, const char* str) {
+  int k;
+  for (k = 0; str[k] != '\0'; ++k) {
+    buf[pos++] = str[k];
+  }
+  return pos;
+}
+
+int string_cleanup(const char* str, char* buf, int len, const char* newl) {
+  int pos = 0;
+  int last_nonblank = -1;
+  int saw_newline = 0;
+  int j;
+  for (j = 0; str[j] != '\0'; ++j) {
+    if (pos >= len) {
+      break;
+    }
+    if (isspace(str[j])) {
+      if (saw_newline) {
+        // ignore
+      } else {
+        if (str[j] == '\n') {
+          pos = string_append(buf, pos, newl);
+          saw_newline = 1;
+          last_nonblank = pos-1;
+        } else {
+          buf[pos++] = str[j];
+        }
+      }
+    } else {
+      if (saw_newline) {
+        buf[pos++] = '\t';
+      }
+      buf[pos++] = str[j];
+      last_nonblank = pos-1;
+      saw_newline = 0;
+    }
+  }
+
+  if (! saw_newline) {
+    pos = string_append(buf, pos, newl);
+    last_nonblank = pos-1;
+  }
+  buf[++last_nonblank] = '\0';
+  return last_nonblank;
+
+  /*
+   * This is the original code in Perl, for reference.
+
+sub _process_newline {
+    local $_ = shift;
+    my $endl = shift;
+    # must handle header values with embedded newlines with care
+    s/\s+$//;        # trailing newlines and space must go
+    s/\n(\x0d?\n)+/\n/g;     # no empty lines
+    s/\n([^\040\t])/\n $1/g; # intial space for continuation
+    s/\n/$endl/g;    # substitute with requested line ending
+    $_;
+
+  */
 }
