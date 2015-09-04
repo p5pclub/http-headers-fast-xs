@@ -183,30 +183,26 @@ int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     return count;
 }
 
-SV* join(pTHX_ char *sep, AV *values) {
+SV * join(pTHX_ AV *values) {
     int    i, top_index;
-    char   *str, *ptr;
-    STRLEN len;
-    SV     **element;
+    char   *str;
+    SV     **element, *joined;
 
     top_index = av_len(values);
+    joined    = newSVpv("", 0);
 
-    element = av_fetch(values, 0, 0);
-    if (element == NULL)
-        croak("av_fetch() failed. This should not happen.");
-
-    str = SvPV(*element, len);
-    ptr = str + len;
-
-    for (i = 1; i <= top_index; i++) {
+    for (i = 0; i <= top_index; i++) {
         element = av_fetch(values, i, 0);
         if (element == NULL)
             croak("av_fetch() failed. This should not happen.");
 
-        ptr = stpcpy(ptr, ", ");
-        ptr = stpcpy(ptr, SvPV_nolen(*element));
+        str = SvPV_nolen(*element);
+        if (i == 0)
+            sv_catpv(joined, str);
+        else
+            sv_catpvf(joined, ", %s", str);
     }
-    return newSVpv(str, ptr - str);
+    return joined;
 }
 
 MODULE = HTTP::Headers::Fast::XS		PACKAGE = HTTP::Headers::Fast::XS
@@ -332,7 +328,7 @@ header(SV *self, ...)
                 XSRETURN(count);
             } else {
                 /* return join( ', ', @old ) */
-                value = join(aTHX_ ", ", (AV *) SvRV(value));
+                value = join(aTHX_ (AV *) SvRV(value));
                 PUSHs(sv_2mortal(value));
                 XSRETURN(1);
             }
