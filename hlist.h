@@ -7,7 +7,7 @@
  */
 
 /*
- * TODO
+ * Some possible improvements:
  *
  * Forget about ':foo'. Fuck that.
  *

@@ -4,10 +4,17 @@
 //#include "XSUB.h"
 //#include "ppport.h"
 
-#include <ctype.h>
 #include "glog.h"
+#include "gmem.h"
 #include "header.h"
 #include "util.h"
+
+// Append string str at pos in buf.
+static int string_append(char* buf, int pos, const char* str);
+
+// Cleanup string str (as used in as_string), leaving cleaned up result in
+// buf, with maximum length len; use newl as new line terminator.
+static int string_cleanup(const char* str, char* buf, int len, const char* newl);
 
 SV* clone_from(pTHX, SV* klass, SV* self, HList* old_list) {
   HV* new_hash = newHV();
@@ -166,42 +173,50 @@ void return_plist(pTHX, PList* list, const char* func, int want) {
     GLOG(("=X= %s: returning as single string", func));
     EXTEND( SP, 1 );
 
-    char rstr[10240]; // TODO
-    int rpos = 0;
-    int num = 0;
-    int j;
-    for (j = 0; j < list->ulen; ++j) {
-      PNode* node = &list->data[j];
-      ++num;
+    if ( count == 1 ) {
+      /*
+       * handle returning one value, useful when storing an object
+       */
+      PNode* node = &list->data[0];
+      PUSHs( (SV*)node->ptr );
 
-      /* handle returning one value,
-         useful when storing an object
-      */
-      if ( count == 1 ) {
-        PUSHs( (SV*)node->ptr );
-        break;
+    } else {
+
+      /*
+       * concatenate values, useful for full header strings
+       */
+
+      int size = 16;
+      for (int j = 0; j < list->ulen; ++j) {
+        PNode* node = &list->data[j];
+        STRLEN len;
+        SvPV( (SV*)node->ptr, len );  // We just need the lenght
+        size += len + 2;
       }
 
-      /* concatenate values
-         useful for full header strings
-      */
-      STRLEN len;
-      char* str = SvPV( (SV*)node->ptr, len );
-      GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
-      if (rpos > 0) {
-        rstr[rpos++] = ',';
-        rstr[rpos++] = ' ';
+      char* rstr;
+      GMEM_NEW(rstr, char*, size);
+      int rpos = 0;
+      int num = 0;
+      for (int j = 0; j < list->ulen; ++j) {
+        PNode* node = &list->data[j];
+        ++num;
+
+        STRLEN len;
+        char* str = SvPV( (SV*)node->ptr, len );
+        GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
+        if (rpos > 0) {
+          rstr[rpos++] = ',';
+          rstr[rpos++] = ' ';
+        }
+
+        memcpy(rstr + rpos, str, len);
+        rpos += len;
       }
 
-      memcpy(rstr + rpos, str, len);
-      rpos += len;
-
-    }
-
-    /* if we concatenated, return it */
-    if ( count > 1 ) {
       rstr[rpos] = '\0';
       PUSHs(sv_2mortal(newSVpv(rstr, rpos)));
+      GMEM_DEL(rstr, char*, size);
     }
 
     PUTBACK;
@@ -223,32 +238,51 @@ void return_plist(pTHX, PList* list, const char* func, int want) {
   }
 }
 
-int format_all(pTHX, HList* h, int sort, char* str, const char* endl) {
+char* format_all(pTHX, HList* h, int sort, const char* endl, int* size) {
   if (sort) {
     hlist_sort(h);
   }
 
-  int pos = 0;
-  int j;
-  for (j = 0; j < h->ulen; ++j) {
+  *size = 64;
+  int le = strlen(endl);
+  for (int j = 0; j < h->ulen; ++j) {
     HNode* hn = &h->data[j];
     const char* header = hn->header->name;
+    int lh = strlen(header);
     PList* pl = hn->values;
-    int k;
-    for (k = 0; k < pl->ulen; ++k) {
+    for (int k = 0; k < pl->ulen; ++k) {
       PNode* pn = &pl->data[k];
       const char* value = SvPV_nolen( (SV*) pn->ptr );
-      char clean[10240]; // TODO
-      string_cleanup(value, clean, 10240, endl);
-      // GLOG(("=X= [%s] => [%s]", header, clean));
-      pos += sprintf(str + pos, "%s: %s", header, clean);
+      int lv = strlen(value);
+      *size += lh + 2 + lv + lv * le;
     }
   }
-  str[pos] = '\0';
-  return pos;
+
+  char* rstr;
+  GMEM_NEW(rstr, char*, *size);
+  int rpos = 0;
+  for (int j = 0; j < h->ulen; ++j) {
+    HNode* hn = &h->data[j];
+    const char* header = hn->header->name;
+    int lh = strlen(header);
+    PList* pl = hn->values;
+    for (int k = 0; k < pl->ulen; ++k) {
+      memcpy(rstr + rpos, header, lh);
+      rpos += lh;
+      rstr[rpos++] = ':';
+      rstr[rpos++] = ' ';
+
+      PNode* pn = &pl->data[k];
+      const char* value = SvPV_nolen( (SV*) pn->ptr );
+      rpos += string_cleanup(value, rstr + rpos, *size - rpos, endl);
+    }
+  }
+  rstr[rpos] = '\0';
+  GLOG(("=X= format_all (%d/%d) [%s]", rpos, *size, rstr));
+  return rstr;
 }
 
-int string_append(char* buf, int pos, const char* str) {
+static int string_append(char* buf, int pos, const char* str) {
   int k;
   for (k = 0; str[k] != '\0'; ++k) {
     buf[pos++] = str[k];
@@ -256,7 +290,7 @@ int string_append(char* buf, int pos, const char* str) {
   return pos;
 }
 
-int string_cleanup(const char* str, char* buf, int len, const char* newl) {
+static int string_cleanup(const char* str, char* buf, int len, const char* newl) {
   int pos = 0;
   int last_nonblank = -1;
   int saw_newline = 0;

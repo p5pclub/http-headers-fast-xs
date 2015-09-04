@@ -26,13 +26,6 @@ void return_plist(pTHX, PList* list, const char* func, int want);
 
 // Format all values in a given object, as a string, into str, using endl as
 // end of line separator; if sort is true, sort key names before.
-int format_all(pTHX, HList* h, int sort, char* str, const char* endl);
-
-// Append string str at pos in buf.
-int string_append(char* buf, int pos, const char* str);
-
-// Cleanup string str (as used in as_string), leaving cleaned up result in
-// buf, with maximum length len; use newl as new line terminator.
-int string_cleanup(const char* str, char* buf, int len, const char* newl);
+char* format_all(pTHX, HList* h, int sort, const char* endl, int* size);
 
 #endif

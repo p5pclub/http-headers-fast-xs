@@ -63,6 +63,8 @@ void hlist_init(HList* hlist) {
   hlist->flags = 0;
 }
 
+// TODO: perhaps we should leave hlist as empty but not delete the chunks we
+// already allocated for it...
 void hlist_clear(HList* hlist) {
   if (!hlist) {
     return;

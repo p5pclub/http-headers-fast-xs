@@ -4,6 +4,7 @@
 #include "XSUB.h"
 #include "ppport.h"
 #include "glog.h"
+#include "gmem.h"
 #include "util.h"
 #include "header.h"
 
@@ -379,6 +380,8 @@ const char*
 as_string(SV* self, ...)
   PREINIT:
     HList* hl = 0;
+    char* str = 0;
+    int size = 0;
 
   CODE:
     hl = fetch_hlist(aTHX, self);
@@ -389,17 +392,22 @@ as_string(SV* self, ...)
       SV* pendl = ST(1);
       cendl = SvPV_nolen(pendl);
     }
-    char str[10240]; // TODO
-    format_all(aTHX, hl, 1, str, cendl);
+
+    str = format_all(aTHX, hl, 1, cendl, &size);
     RETVAL = str;
 
   OUTPUT: RETVAL
+
+  CLEANUP:
+    GMEM_DEL(str, char*, size);
 
 
 const char*
 as_string_without_sort(SV* self, ...)
   PREINIT:
     HList* hl = 0;
+    char* str = 0;
+    int size = 0;
 
   CODE:
     hl = fetch_hlist(aTHX, self);
@@ -410,11 +418,14 @@ as_string_without_sort(SV* self, ...)
       SV* pendl = ST(1);
       cendl = SvPV_nolen(pendl);
     }
-    char str[10240]; // TODO
-    format_all(aTHX, hl, 0, str, cendl);
+
+    str = format_all(aTHX, hl, 0, cendl, &size);
     RETVAL = str;
 
   OUTPUT: RETVAL
+
+  CLEANUP:
+    GMEM_DEL(str, char*, size);
 
 
 void
