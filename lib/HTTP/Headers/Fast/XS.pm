@@ -27,8 +27,6 @@ XSLoader::load( 'HTTP::Headers::Fast::XS', $VERSION );
     *HTTP::Headers::Fast::XS::remove_header;
 *HTTP::Headers::Fast::remove_content_headers =
     *HTTP::Headers::Fast::XS::remove_content_headers;
-*HTTP::Headers::Fast::_header_keys =
-    *HTTP::Headers::Fast::XS::_header_keys;
 *HTTP::Headers::Fast::as_string =
     *HTTP::Headers::Fast::XS::as_string;
 *HTTP::Headers::Fast::as_string_without_sort =
