@@ -177,8 +177,8 @@ static int format_all(pTHX_ HList* h, int sort, char* str, const char* endl) {
     for (k = 0; k < pl->ulen; ++k) {
       PNode* pn = &pl->data[k];
       const char* value = SvPV_nolen( (SV*) pn->ptr );
-      char clean[10240];
-      int l = string_cleanup(value, clean, 10240, endl); // TODO
+      char clean[10240]; // TODO
+      string_cleanup(value, clean, 10240, endl);
       // GLOG(("=X= [%s] => [%s]", header, clean));
       pos += sprintf(str + pos, "%s: %s", header, clean);
     }
@@ -516,7 +516,6 @@ init_header(SV* self, ...)
   PREINIT:
     int argc = 0;
     HList* h = 0;
-    HNode* n = 0;
     int    ctrans = 0;
     SV*    pkey;
     SV*    pval;
@@ -550,7 +549,6 @@ push_header(SV* self, ...)
   PREINIT:
     int argc = 0;
     HList* h = 0;
-    HNode* n = 0;
     int    ctrans = 0;
     int    j = 0;
     SV*    pkey;
@@ -593,7 +591,6 @@ header(SV* self, ...)
   PREINIT:
     int argc = 0;
     HList* h = 0;
-    HNode* n = 0;
     int    ctrans = 0;
     int    j = 0;
     SV*    pkey;
@@ -679,7 +676,6 @@ remove_header(SV* self, ...)
   PREINIT:
     int argc = 0;
     HList* h = 0;
-    HNode* n = 0;
     int    ctrans = 0;
     int    j = 0;
     SV*    pkey;

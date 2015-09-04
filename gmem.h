@@ -48,9 +48,7 @@
   } while (0)
 #define GMEM_DELSTR(str, len) \
   do { \
-    if (!str) break; \
-    int l = len <= 0 ? strlen(str) + 1 : len; \
-    _GMEM_DEL(str, char*, l); \
+    _GMEM_DEL(str, char*, len); \
   } while (0)
 
 #else

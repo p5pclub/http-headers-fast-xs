@@ -190,19 +190,7 @@ static void hlist_grow(HList* hlist) {
 
   int count = hlist->alen == 0 ? HLIST_INITIAL_SIZE : 2*hlist->alen;
   GLOG(("=C= Growing HList from %d to %d", hlist->alen, count));
-#if 1
-  int osize = sizeof(HNode) * hlist->alen;
-  int nsize = sizeof(HNode) * count;
-  GMEM_REALLOC(hlist->data, HNode*, osize, nsize);
-#else
-  HNode* data = 0;
-  GMEM_NEWARR(data, HNode*, count, sizeof(HNode));
-  for (int j = 0; j < hlist->ulen; ++j) {
-    data[j] = hlist->data[j];
-  }
-  GMEM_DELARR(hlist->data, HNode*, hlist->alen, sizeof(HNode));
-  hlist->data = data;
-#endif
+  GMEM_REALLOC(hlist->data, HNode*, sizeof(HNode) * hlist->alen, sizeof(HNode) * count);
   hlist->alen = count;
 }
 
@@ -216,6 +204,9 @@ static int hlist_cmp(const void* v1, const void* v2) {
   return delta ? delta : header_compare(h1->name, h2->name);
 }
 
+/*
+ * TODO: leave this as pure lookup, move insert and delete to the caller functions.
+ */
 static HNode* hlist_lookup(HList* hlist, const char* name, int type, int add, int del) {
   if (!hlist) {
     return 0;

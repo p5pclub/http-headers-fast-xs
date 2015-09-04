@@ -104,18 +104,6 @@ static void plist_grow(PList* plist) {
 
   int count = plist->alen == 0 ? PLIST_INITIAL_SIZE : 2*plist->alen;
   GLOG(("=C= Growing PList from %d to %d", plist->alen, count));
-#if 1
-  int osize = sizeof(PNode) * plist->alen;
-  int nsize = sizeof(PNode) * count;
-  GMEM_REALLOC(plist->data, PNode*, osize, nsize);
-#else
-  PNode* data = 0;
-  GMEM_NEWARR(data, PNode*, count, sizeof(PNode));
-  for (int j = 0; j < plist->ulen; ++j) {
-    data[j] = plist->data[j];
-  }
-  GMEM_DELARR(plist->data, PNode*, plist->alen, sizeof(PNode));
-  plist->data = data;
-#endif
+  GMEM_REALLOC(plist->data, PNode*, sizeof(PNode) * plist->alen, sizeof(PNode) * count);
   plist->alen = count;
 }
