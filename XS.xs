@@ -85,7 +85,10 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     if (h == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
-    return newSVsv(*h);
+    if ( SvROK(*h) )
+        return *h;
+    else
+        return newSVsv(*h);
 }
 
 void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
