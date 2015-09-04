@@ -109,6 +109,8 @@ void header_clear(Header* header) {
 
 #define CONVERT(c) c == '_' ? '-' : isupper(c) ? tolower(c) : c
 
+// TODO: this could probably made faster if we precomputed the CONVERTed
+// values instead of doing it over and over again...
 int header_compare(const char* n1, const char* n2) {
   int p = 0;
   while (1) {

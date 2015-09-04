@@ -2,6 +2,11 @@
 #define HLIST_H_
 
 /*
+ * A list of headers (HNodes), each of which has header info (Header*) and
+ * values (Plist*).
+ */
+
+/*
  * TODO
  *
  * Forget about ':foo'. Fuck that.
@@ -9,12 +14,10 @@
  * Add two flags per HList: comparison is case sensitive (default 0), consider
  * '_' and '-' as distinct (default 0).
  *
- * Add a sorted flag, set it to zero when adding, to 1 when sorting.
- *
  * Add a last HNode, update it when getting and adding, try it first when searching.
- *
- * Add a total_length???
  */
+
+// when we first allocate a chunk of headers, this is the size we use
 #define HLIST_INITIAL_SIZE   4 // 16
 
 #define HLIST_FLAGS_SORTED    0x01
@@ -29,15 +32,15 @@ struct Header;
 struct PList;
 
 typedef struct HNode {
-  struct Header* header;
-  struct PList* values;
+  struct Header* header;  // the header name and proper sorting order
+  struct PList* values;   // the list of values associated with this header
 } HNode;
 
 typedef struct HList {
-  HNode* data;
-  unsigned short alen;
-  unsigned short ulen;
-  unsigned long flags;
+  HNode* data;            // a chunk of headers (with their respective values)
+  unsigned short alen;    // allocated size of chunk
+  unsigned short ulen;    // actual used size in chunk
+  unsigned long flags;    // flags for this list of headers
 } HList;
 
 HList* hlist_create();

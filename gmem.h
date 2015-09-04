@@ -1,6 +1,33 @@
 #ifndef GMEM_H_
 #define GMEM_H_
 
+/*
+ * A set of macros / functions to allocate and release dynamic memory.  When
+ * compiling with GMEM_CHECK defined, the macros keep track of all memory
+ * allocation and deallocation, and a summary is printed out at the end; when
+ * it is undefined, the macros are equivalent to raw calls to malloc / realloc
+ * / free, thus incurring no runtime cost (one addition in this case is that,
+ * when freeing, the freed variable is set to zero).
+ *
+ * Examples for calling the macros:
+ *
+ *   GMEM_NEW(header, Header*, sizeof(Header))
+ *         => header = (Header*) malloc(sizeof(Header))
+ *
+ *   GMEM_REALLOC(data, Data*, 20, 30)
+ *         => data = (Data*) realloc(data, 40), set last 10 elements to 0
+ *
+ *   GMEM_DEL(header, Header*, sizeof(Header))
+ *         => free(header), header = 0
+ *
+ *   GMEM_NEWARR(data, Data*, 10, sizeof(Data))
+ *         => data = (Data*) calloc(40, sizeof(Dasta))
+ *
+ *   GMEM_DELARR(data, Data*, 10, sizeof(Data))
+ *         => free(data), data = 0
+ *
+ */
+
 #include <stdlib.h>
 #include <string.h>
 
