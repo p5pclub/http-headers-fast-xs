@@ -273,11 +273,12 @@ header(SV *self, ...)
             handle_standard_case(aTHX_ field, len);
             value = get_header_value(aTHX_ self_hash, field, len);
 
-            if ( value != NULL && !SvOK(ST(2)) ) {
-                hv_delete(self_hash, field, len, G_DISCARD);
-            } else {
+            if ( SvOK(ST(2)) )
                 set_header_value(aTHX_ self_hash, field, len, ST(2));
-            }
+            else if (value != NULL)
+                /* delete only if there is something to delete */
+                hv_delete(self_hash, field, len, G_DISCARD);
+
         } else {
             /* save the args from the stack since _header_push()
              * might overwrite them with results */
@@ -294,11 +295,12 @@ header(SV *self, ...)
 
                     /* @old = $self->_header_set($field, shift) */
                     value = get_header_value(aTHX_ self_hash, field, len);
-                    if ( value != NULL && !SvOK(args[arg + 1]) ) {
-                        hv_delete(self_hash, field, len, G_DISCARD);
-                    } else {
+                    if ( SvOK(args[arg + 1]) )
                         set_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
-                    }
+                    else if (value != NULL)
+                        /* delete only if there is something to delete */
+                        hv_delete(self_hash, field, len, G_DISCARD);
+
                 } else {
                     /* @old = $self->_header_push($field, shift) */
                     value = get_header_value(aTHX_ self_hash, field, len);
@@ -375,10 +377,10 @@ _header_set(SV *self, SV *field_name, SV *val)
         /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
 
-        if (!SvOK(val) && count) {
-            hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
-        } else {
+        if ( SvOK(val) )
             set_header_value(aTHX_ (HV *)SvRV(self), field, len, val);
-        }
+        else if (count)
+            /* delete only if there is something to delete */
+            hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
 
         XSRETURN(count);

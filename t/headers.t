@@ -7,7 +7,7 @@ use Test::Requires 'URI';
 use HTTP::Headers::Fast;
 use HTTP::Headers::Fast::XS;
 
-plan tests => 165;
+plan tests => 166;
 
 my($h, $h2);
 sub j { join("|", @_) }
@@ -15,6 +15,10 @@ sub j { join("|", @_) }
 $h = HTTP::Headers::Fast->new;
 ok($h);
 ok(ref($h), "HTTP::Headers::Fast");
+ok($h->as_string, "");
+
+# Trying to delete a non-existent header should do nothing
+$h->header( foo => undef );
 ok($h->as_string, "");
 
 $h = HTTP::Headers::Fast->new(foo => "bar", foo => "baaaaz", Foo => "baz");
