@@ -16,7 +16,7 @@ static int string_append(char* buf, int pos, const char* str);
 // buf, with maximum length len; use newl as new line terminator.
 static int string_cleanup(const char* str, char* buf, int len, const char* newl);
 
-SV* clone_from(pTHX, SV* klass, SV* self, HList* old_list) {
+SV* clone_from(pTHX_ SV* klass, SV* self, HList* old_list) {
   HV* new_hash = newHV();
   if ( !new_hash ) {
     croak("Could not create new hash.");
@@ -68,7 +68,7 @@ SV* clone_from(pTHX, SV* klass, SV* self, HList* old_list) {
   return retval;
 }
 
-void set_value(pTHX, HList* h, const char* ckey, SV* pval) {
+void set_value(pTHX_ HList* h, const char* ckey, SV* pval) {
   if ( ! SvOK(pval) ) {
     GLOG(("=X= deleting [%s]", ckey));
     hlist_del( h, ckey );
@@ -90,12 +90,12 @@ void set_value(pTHX, HList* h, const char* ckey, SV* pval) {
   set_array(aTHX, h, ckey, array);
 }
 
-void set_scalar(pTHX, HList* h, const char* ckey, SV* pval) {
+void set_scalar(pTHX_ HList* h, const char* ckey, SV* pval) {
   hlist_add(h, ckey, newSVsv(pval));
   GLOG(("=X= set scalar [%s] => [%s]", ckey, SvPV_nolen(pval)));
 }
 
-void set_array(pTHX, HList* h, const char* ckey, AV* pval) {
+void set_array(pTHX_ HList* h, const char* ckey, AV* pval) {
   int count = av_len(pval) + 1;
   int j;
   for (j = 0; j < count; ++j) {
@@ -105,7 +105,7 @@ void set_array(pTHX, HList* h, const char* ckey, AV* pval) {
   }
 }
 
-void return_hlist(pTHX, HList* list, const char* func, int want) {
+void return_hlist(pTHX_ HList* list, const char* func, int want) {
   dSP;
 
   if (want == G_VOID) {
@@ -145,7 +145,7 @@ void return_hlist(pTHX, HList* list, const char* func, int want) {
   }
 }
 
-void return_plist(pTHX, PList* list, const char* func, int want) {
+void return_plist(pTHX_ PList* list, const char* func, int want) {
   dSP;
 
   if (want == G_VOID) {
@@ -238,7 +238,7 @@ void return_plist(pTHX, PList* list, const char* func, int want) {
   }
 }
 
-char* format_all(pTHX, HList* h, int sort, const char* endl, int* size) {
+char* format_all(pTHX_ HList* h, int sort, const char* endl, int* size) {
   if (sort) {
     hlist_sort(h);
   }

@@ -10,7 +10,7 @@
 
 #define HLIST_KEY_STR "hlist"
 
-static HList* fetch_hlist(pTHX, SV* self) {
+static HList* fetch_hlist(pTHX_ SV* self) {
   HList* hl;
 
   hl = (HList*) SvIV(*hv_fetch((HV*) SvRV(self),
