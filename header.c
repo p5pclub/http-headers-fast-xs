@@ -74,28 +74,16 @@ static Header standard_headers[] = {
 };
 static int standard_headers_size = sizeof(standard_headers) / sizeof(standard_headers[0]);
 
+static int normalise(char* buf, const char* str);
+
+
 Header* header_create(const char* name) {
   Header* h = 0;
   GMEM_NEW(h, Header*, sizeof(Header));
   h->order = HEADER_TYPE_NONE;
   int l = strlen(name) + 1;
   GMEM_NEW(h->name, char*, l);
-  int word = 0;
-  int j = 0;
-  for (j = 0; name[j] != '\0'; ++j) {
-    if (isalpha(name[j])) {
-      if (word) {
-        h->name[j] = tolower(name[j]);
-      } else {
-        h->name[j] = toupper(name[j]);
-        word = 1;
-      }
-    } else {
-      h->name[j] = name[j] == '_' ? '-' : name[j];
-      word = 0;
-    }
-  }
-  h->name[j] = '\0';
+  normalise(h->name, name);
   GLOG(("=C= Created header [%s] => [%s]", name, h->name));
   return h;
 }
@@ -205,4 +193,24 @@ int header_is_entity(const Header* h) {
 
   GLOG(("=C= header [%s] is entity (CMP)", h->name));
   return 1;
+}
+
+static int normalise(char* buf, const char* str) {
+  int word = 0;
+  int j = 0;
+  for (j = 0; str[j] != '\0'; ++j) {
+    if (isalpha(str[j])) {
+      if (word) {
+        buf[j] = tolower(str[j]);
+      } else {
+        buf[j] = toupper(str[j]);
+        word = 1;
+      }
+    } else {
+      buf[j] = str[j] == '_' ? '-' : str[j];
+      word = 0;
+    }
+  }
+  buf[j] = '\0';
+  return j;
 }
