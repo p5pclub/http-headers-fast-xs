@@ -19,17 +19,45 @@ typedef struct PList {
   unsigned short ulen;    // actual used size in chunk
 } PList;
 
+/*
+ * Create a new PList object.
+ */
 PList* plist_create(void);
+
+/*
+ * Destroy a given PList object.
+ */
 void plist_destroy(PList* plist);
+
+/*
+ * Clone a given PList object.
+ */
 PList* plist_clone(PList* plist);
 
+/*
+ * Initialise a given PList object, leaving it as newly created.
+ */
 void plist_init(PList* plist);
+
+/*
+ * Clear all data from a given PList object, leaving it as newly created
+ * (maybe with room already allocated).
+ */
 void plist_clear(PList* plist);
 
+/*
+ * Return the number of elements in a given PList object.
+ */
 int plist_size(const PList* plist);
 
+/*
+ * Add a void* value to the PList.
+ */
 PNode* plist_add(PList* plist, const void* obj);
 
+/*
+ * Dump PList object to an output stream.
+ */
 void plist_dump(const PList* plist, FILE* fp);
 
 #endif

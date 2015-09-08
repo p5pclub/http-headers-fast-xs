@@ -28,9 +28,6 @@
 #define HLIST_FLAG_SET(h, f)  h->flags |=  f
 #define HLIST_FLAG_CLR(h, f)  h->flags &= ~f
 
-struct Header;
-struct PList;
-
 typedef struct HNode {
   struct Header* header;  // the header name and proper sorting order
   struct PList* values;   // the list of values associated with this header
@@ -43,23 +40,67 @@ typedef struct HList {
   unsigned long flags;    // flags for this list of headers
 } HList;
 
+/*
+ * Create a new HList object.
+ */
 HList* hlist_create();
+
+/*
+ * Destroy a given HList object.
+ */
 void hlist_destroy(HList* hlist);
+
+/*
+ * Clone a given HList object.
+ */
 HList* hlist_clone(HList* hlist);
 
+/*
+ * Initialise a given HList object, leaving it as newly created.
+ */
 void hlist_init(HList* hlist);
+
+/*
+ * Clear all data from a given HList object, leaving it as newly created
+ * (maybe with room already allocated).
+ */
 void hlist_clear(HList* hlist);
 
+/*
+ * Return the number of elements in a given HList object.
+ */
 int hlist_size(const HList* hlist);
 
+/*
+ * Get the HNode (or zero) associated with a given name.
+ */
 HNode* hlist_get(HList* hlist, const char* name);
+
+/*
+ * Find (or create) the HNode associated with a given name and add a void*
+ * value to it.
+ */
 HNode* hlist_add(HList* hlist, const char* name, const void* obj);
+
+/*
+ * Delete the HNode (if any) associated with a given name.
+ */
 void hlist_del(HList* hlist, const char* name);
 
+/*
+ * Sort a given HList object by the names of its HNode contents.
+ */
 void hlist_sort(HList* hlist);
 
+/*
+ * Dump HList object to an output stream.
+ */
 void hlist_dump(const HList* hlist, FILE* fp);
 
+/*
+ * Transfer the header from an HList object to another HList, without creating
+ * or destroying any memory in the process.
+ */
 void hlist_transfer_header(HList* from, int pos, HList* to);
 
 #endif
