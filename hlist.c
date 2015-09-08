@@ -73,7 +73,7 @@ void hlist_clear(HList* hlist) {
   int j;
   for (j = 0; j < hlist->ulen; ++j) {
     HNode* n = &hlist->data[j];
-    header_clear(n->header);
+    header_destroy(n->header);
     plist_destroy(n->values);
   }
   GMEM_DELARR(hlist->data, HNode*, hlist->alen, sizeof(HNode));
@@ -101,7 +101,7 @@ HNode* hlist_add(HList* hlist, const char* name, const void* obj) {
 
   HNode* n = hlist_lookup(hlist, name, HEADER_TYPE_NONE, 0, 0);
   if (!n) {
-    Header* h = header_lookup(name, HEADER_TYPE_NONE);
+    Header* h = header_lookup_standard(HEADER_TYPE_NONE, name);
     if (!h) {
       h = header_create(name);
     }
@@ -173,7 +173,7 @@ static void hlist_del_pos(HList* hlist, int pos, int clear) {
   HNode* n = &hlist->data[pos];
   --hlist->ulen;
   if (clear) {
-    header_clear(n->header);
+    header_destroy(n->header);
     plist_destroy(n->values);
   }
   int j;
@@ -207,7 +207,7 @@ static int hlist_cmp(const void* v1, const void* v2) {
 }
 
 /*
- * TODO: leave this as pure lookup, move insert and delete to the caller functions.
+ * TODO: leave this as pure lookup, move insert and delete to the caller functions?
  */
 static HNode* hlist_lookup(HList* hlist, const char* name, int type, int add, int del) {
   if (!hlist) {
@@ -218,7 +218,7 @@ static HNode* hlist_lookup(HList* hlist, const char* name, int type, int add, in
   HNode* n = 0;
   for (j = 0; j < hlist->ulen; ++j) {
     n = &hlist->data[j];
-    if (header_match(n->header, name, type)) {
+    if (header_matches_type_or_name(n->header, type, name)) {
       break;
     }
   }
