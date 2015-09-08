@@ -22,7 +22,14 @@ typedef struct Header {
   char* name;  // the header name
 } Header;
 
+/*
+ * Create a Header object.
+ */
 Header* header_create(const char* name);
+
+/*
+ * Clone a given Header object.
+ */
 Header* header_clone(Header* header);
 
 /*
@@ -54,7 +61,9 @@ Header* header_lookup_standard(int type, const char* name);
  */
 void header_dump(const Header* h, FILE* fp);
 
-// Is this header an entity header?
+/*
+ * Return true if this header is an entity header.
+ */
 int header_is_entity(const Header* h);
 
 #endif

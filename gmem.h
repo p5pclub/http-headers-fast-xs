@@ -2,12 +2,13 @@
 #define GMEM_H_
 
 /*
- * A set of macros / functions to allocate and release dynamic memory.  When
- * compiling with GMEM_CHECK defined, the macros keep track of all memory
+ * A set of macros / functions to allocate and release dynamic memory.
+ *
+ * When compiling with GMEM_CHECK defined, the macros keep track of all memory
  * allocation and deallocation, and a summary is printed out at the end; when
  * it is undefined, the macros are equivalent to raw calls to malloc / realloc
- * / free, thus incurring no runtime cost (one addition in this case is that,
- * when freeing, the freed variable is set to zero).
+ * / free, thus incurring no runtime cost; additionally, in this case when
+ * freeing, the freed variable is set to zero.
  *
  * Examples for calling the macros:
  *
@@ -25,7 +26,6 @@
  *
  *   GMEM_DELARR(data, Data*, 10, sizeof(Data))
  *         => free(data), data = 0
- *
  */
 
 #include <stdlib.h>
