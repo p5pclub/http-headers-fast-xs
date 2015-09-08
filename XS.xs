@@ -443,7 +443,7 @@ scan(SV* self, CV* sub)
     for (j = 0; j < hl->ulen; ++j) {
       HNode* hn = &hl->data[j];
       const char* header = hn->header->name;
-      SV* pheader = newSVpv(header, 0);
+      SV* pheader = sv_2mortal(newSVpv(header, 0));
       PList* pl = hn->values;
       for (k = 0; k < pl->ulen; ++k) {
         PNode* pn = &pl->data[k];
