@@ -84,18 +84,18 @@ void set_value(pTHX_ HList* h, const char* ckey, SV* pval) {
   }
 
   if ( ! SvROK(pval) ) {
-    set_scalar(aTHX, h, ckey, pval);
+    set_scalar(aTHX_ h, ckey, pval);
     return;
   }
 
   deref = SvRV(pval);
   if (SvTYPE(deref) != SVt_PVAV) {
-    set_scalar( aTHX, h, ckey, pval);
+    set_scalar(aTHX_ h, ckey, pval);
     return;
   }
 
   array = (AV*) deref;
-  set_array(aTHX, h, ckey, array);
+  set_array(aTHX_ h, ckey, array);
 }
 
 void set_scalar(pTHX_ HList* h, const char* ckey, SV* pval) {
@@ -109,7 +109,7 @@ void set_array(pTHX_ HList* h, const char* ckey, AV* pval) {
   for (j = 0; j < count; ++j) {
     SV** svp = av_fetch(pval, j, 0);
     GLOG(("=X= set array %2d [%s]", j, ckey));
-    set_value(aTHX, h, ckey, *svp);
+    set_value(aTHX_ h, ckey, *svp);
   }
 }
 

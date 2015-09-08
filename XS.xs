@@ -43,8 +43,8 @@ new( SV* klass, ... )
         croak("Expecting a hash as input to constructor");
 
     GLOG(("=X= @@@ new()"));
-    self = clone_from(aTHX, klass, 0, 0);
-    hl = fetch_hlist(aTHX, self);
+    self = clone_from(aTHX_ klass, 0, 0);
+    hl = fetch_hlist(aTHX_ self);
 
     /* create the initial list */
     for (j = 1; j <= argc; ) {
@@ -58,7 +58,7 @@ new( SV* klass, ... )
         pval = ST(j++);
         ckey = SvPV_nolen(pkey);
         GLOG(("=X= Will set [%s] to [%s]", ckey, SvPV_nolen(pval)));
-        set_value(aTHX, hl, ckey, pval);
+        set_value(aTHX_ hl, ckey, pval);
     }
 
     RETVAL = self;
@@ -72,9 +72,9 @@ clone( SV* self )
     HList* hl = 0;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ clone(%p|%d)", hl, hlist_size(hl)));
-    RETVAL = clone_from(aTHX, 0, self, hl);
+    RETVAL = clone_from(aTHX_ 0, self, hl);
 
   OUTPUT: RETVAL
 
@@ -90,7 +90,7 @@ DESTROY(SV* self, ...)
     int    k;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ destroy(%p|%d)", hl, hlist_size(hl)));
 
     for (j = 0; j < hl->ulen; ++j) {
@@ -114,7 +114,7 @@ clear(SV* self, ...)
     HList* hl = 0;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ clear(%p|%d)", hl, hlist_size(hl)));
     hlist_clear(hl);
 
@@ -128,13 +128,13 @@ header_field_names(SV* self)
     HList* hl = 0;
 
   PPCODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ header_field_names(%p|%d), want %d",
           hl, hlist_size(hl), GIMME_V));
 
     hlist_sort(hl);
     PUTBACK;
-    return_hlist(aTHX, hl, "header_field_names", GIMME_V);
+    return_hlist(aTHX_ hl, "header_field_names", GIMME_V);
     SPAGAIN;
 
 
@@ -157,7 +157,7 @@ init_header(SV* self, ...)
       croak("init_header needs two arguments");
     }
 
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ init_header(%p|%d), %d params, want %d",
           hl, hlist_size(hl), argc, GIMME_V));
 
@@ -166,7 +166,7 @@ init_header(SV* self, ...)
     pval = ST(2);
 
     if (!hlist_get(hl, ckey)) {
-      set_value(aTHX, hl, ckey, pval);
+      set_value(aTHX_ hl, ckey, pval);
     }
 
 #
@@ -189,7 +189,7 @@ push_header(SV* self, ...)
       croak("push_header needs an even number of arguments");
     }
 
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ push_header(%p|%d), %d params, want %d",
           hl, hlist_size(hl), argc, GIMME_V));
 
@@ -205,7 +205,7 @@ push_header(SV* self, ...)
         pval = ST(j++);
 
         ckey = SvPV(pkey, len);
-        set_value(aTHX, hl, ckey, pval);
+        set_value(aTHX_ hl, ckey, pval);
     }
 
 
@@ -226,7 +226,7 @@ header(SV* self, ...)
 
   PPCODE:
     argc = items - 1;
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ header(%p|%d), %d params, want %d",
           hl, hlist_size(hl), argc, GIMME_V));
 
@@ -242,7 +242,7 @@ header(SV* self, ...)
         HNode* n = hlist_get(hl, ckey);
         if (n && plist_size(n->values) > 0) {
           PUTBACK;
-          return_plist(aTHX, n->values, "header1", GIMME_V);
+          return_plist(aTHX_ n->values, "header1", GIMME_V);
           SPAGAIN;
         }
         break;
@@ -277,7 +277,7 @@ header(SV* self, ...)
             if (j > argc && plist_size(n->values) > 0) {
               /* Last value, return its current contents */
               PUTBACK;
-              return_plist(aTHX, n->values, "header2", GIMME_V);
+              return_plist(aTHX_ n->values, "header2", GIMME_V);
               SPAGAIN;
             }
             if (clear) {
@@ -285,7 +285,7 @@ header(SV* self, ...)
             }
           }
 
-          set_value(aTHX, hl, ckey, pval);
+          set_value(aTHX_ hl, ckey, pval);
       }
       hlist_destroy(seen);
       break;
@@ -309,7 +309,7 @@ remove_header(SV* self, ...)
 
   PPCODE:
     argc = items - 1;
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ remove_header(%p|%d), %d params, want %d",
           hl, hlist_size(hl), argc, GIMME_V));
 
@@ -327,7 +327,7 @@ remove_header(SV* self, ...)
         total += size;
         if (GIMME_V == G_ARRAY) {
           PUTBACK;
-          return_plist(aTHX, n->values, "remove_header", G_ARRAY);
+          return_plist(aTHX_ n->values, "remove_header", G_ARRAY);
           SPAGAIN;
         }
       }
@@ -356,12 +356,12 @@ remove_content_headers(SV* self, ...)
     int    j;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ remove_content_headers(%p|%d)",
           hl, hlist_size(hl)));
 
-    extra = clone_from(aTHX, 0, self, 0);
-    to = fetch_hlist(aTHX, extra);
+    extra = clone_from(aTHX_ 0, self, 0);
+    to = fetch_hlist(aTHX_ extra);
     for (j = 0; j < hl->ulen; ) {
       n = &hl->data[j];
       if (! header_is_entity(n->header)) {
@@ -384,7 +384,7 @@ as_string(SV* self, ...)
     int size = 0;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ as_string(%p|%d) %d", hl, hlist_size(hl), items));
 
     const char* cendl = "\n";
@@ -393,7 +393,7 @@ as_string(SV* self, ...)
       cendl = SvPV_nolen(pendl);
     }
 
-    str = format_all(aTHX, hl, 1, cendl, &size);
+    str = format_all(aTHX_ hl, 1, cendl, &size);
     RETVAL = str;
 
   OUTPUT: RETVAL
@@ -410,7 +410,7 @@ as_string_without_sort(SV* self, ...)
     int size = 0;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ as_string_without_sort(%p|%d) %d", hl, hlist_size(hl), items));
 
     const char* cendl = "\n";
@@ -419,7 +419,7 @@ as_string_without_sort(SV* self, ...)
       cendl = SvPV_nolen(pendl);
     }
 
-    str = format_all(aTHX, hl, 0, cendl, &size);
+    str = format_all(aTHX_ hl, 0, cendl, &size);
     RETVAL = str;
 
   OUTPUT: RETVAL
@@ -436,7 +436,7 @@ scan(SV* self, CV* sub)
     int    k;
 
   CODE:
-    hl = fetch_hlist(aTHX, self);
+    hl = fetch_hlist(aTHX_ self);
     GLOG(("=X= @@@ scan(%p|%d)", hl, hlist_size(hl)));
 
     hlist_sort(hl);
