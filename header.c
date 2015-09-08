@@ -97,7 +97,7 @@ Header* header_clone(Header* header) {
   return h;
 }
 
-void header_clear(Header* header) {
+void header_destroy(Header* header) {
   if (header->order != HEADER_TYPE_NONE) {
     return;
   }
@@ -134,7 +134,7 @@ int header_compare(const char* n1, const char* n2) {
   return 0;
 }
 
-int header_match(const Header* h, const char* name, int type) {
+int header_matches_type_or_name(const Header* h, int type, const char* name) {
   if (type != HEADER_TYPE_NONE && !HEADER_IS_CLASS(h, type)) {
     return 0;
   }
@@ -143,12 +143,10 @@ int header_match(const Header* h, const char* name, int type) {
   return cmp == 0;
 }
 
-Header* header_lookup(const char* name, int type) {
-  int j = 0;
-  Header* h = 0;
-  for (j = 0; j < standard_headers_size; ++j) {
-    h = &standard_headers[j];
-    if (header_match(h, name, type)) {
+Header* header_lookup_standard(int type, const char* name) {
+  for (int j = 0; j < standard_headers_size; ++j) {
+    Header* h = &standard_headers[j];
+    if (header_matches_type_or_name(h, type, name)) {
       return h;
     }
   }

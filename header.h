@@ -24,11 +24,34 @@ typedef struct Header {
 
 Header* header_create(const char* name);
 Header* header_clone(Header* header);
-void header_clear(Header* header);
 
+/*
+ * Destroy a Header object.
+ *
+ * If header's type is not HEADER_TYPE_NONE, do nothing.
+ */
+void header_destroy(Header* header);
+
+/*
+ * Compare two strings as if they were header names.  Return results similar
+ * to strcmp().
+ */
 int header_compare(const char* n1, const char* n2);
-int header_match(const Header* h, const char* name, int type);
-Header* header_lookup(const char* name, int type);
+
+/*
+ * Return true if header matches a specific type, or if it matches the given
+ * name.
+ */
+int header_matches_type_or_name(const Header* h, int type, const char* name);
+
+/*
+ * Search standard headers for a given type / name.
+ */
+Header* header_lookup_standard(int type, const char* name);
+
+/*
+ * Dump Header object to an output stream.
+ */
 void header_dump(const Header* h, FILE* fp);
 
 // Is this header an entity header?
