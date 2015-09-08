@@ -78,10 +78,11 @@ static int normalise(char* buf, const char* str);
 
 
 Header* header_create(const char* name) {
+  int l;
   Header* h = 0;
   GMEM_NEW(h, Header*, sizeof(Header));
   h->order = HEADER_TYPE_NONE;
-  int l = strlen(name) + 1;
+  l = strlen(name) + 1;
   GMEM_NEW(h->name, char*, l);
   normalise(h->name, name);
   GLOG(("=C= Created header [%s] => [%s]", name, h->name));
@@ -89,11 +90,12 @@ Header* header_create(const char* name) {
 }
 
 Header* header_clone(Header* header) {
+  Header *h;
   if (header->order != HEADER_TYPE_NONE) {
     return header;
   }
 
-  Header* h = header_create(header->name);
+  h = header_create(header->name);
   return h;
 }
 
@@ -111,12 +113,14 @@ void header_destroy(Header* header) {
 // values instead of doing it over and over again...
 int header_compare(const char* n1, const char* n2) {
   int p = 0;
+  char c1;
+  char c2;
   while (1) {
     if (n1[p] == '\0' || n2[p] == '\0') {
       break;
     }
-    char c1 = CONVERT(n1[p]);
-    char c2 = CONVERT(n2[p]);
+    c1 = CONVERT(n1[p]);
+    c2 = CONVERT(n2[p]);
     if (c1 < c2) {
       return -1;
     }
@@ -135,16 +139,18 @@ int header_compare(const char* n1, const char* n2) {
 }
 
 int header_matches_type_or_name(const Header* h, int type, const char* name) {
+  int cmp;
   if (type != HEADER_TYPE_NONE && !HEADER_IS_CLASS(h, type)) {
     return 0;
   }
-  int cmp = header_compare(name, h->name);
+  cmp = header_compare(name, h->name);
   // GLOG(("=C= compare [%s] & [%s] => %d", name, h->name, cmp));
   return cmp == 0;
 }
 
 Header* header_lookup_standard(int type, const char* name) {
-  for (int j = 0; j < standard_headers_size; ++j) {
+  int j;
+  for (j = 0; j < standard_headers_size; ++j) {
     Header* h = &standard_headers[j];
     if (header_matches_type_or_name(h, type, name)) {
       return h;
@@ -164,6 +170,9 @@ void header_dump(const Header* h, FILE* fp) {
 }
 
 int header_is_entity(const Header* h) {
+  const char* start = "content-";
+  int j;
+
   if (HEADER_IS_ENTITY(h)) {
     GLOG(("=C= header [%s] is entity (QUICK)", h->name));
     return 1;
@@ -176,8 +185,6 @@ int header_is_entity(const Header* h) {
     return 0;
   }
 
-  const char* start = "content-";
-  int j;
   for (j = 0; start[j] != 0; ++j) {
     if (h->name[j] == '\0') {
       GLOG(("=C= header [%s] is not entity (EOS)", h->name));

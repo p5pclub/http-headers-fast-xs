@@ -17,24 +17,25 @@ static int string_append(char* buf, int pos, const char* str);
 static int string_cleanup(const char* str, char* buf, int len, const char* newl);
 
 SV* clone_from(pTHX_ SV* klass, SV* self, HList* old_list) {
+  HList *new_list = 0;
   HV* new_hash = newHV();
+
   if ( !new_hash ) {
     croak("Could not create new hash.");
   }
 
-  HList* new_list = 0;
   if (!old_list) {
     new_list = hlist_create();
     if ( !new_list ) {
       croak("Could not create new HList object");
     }
   } else {
+    int j, k;
+
     new_list = hlist_clone(old_list);
     if ( !new_list ) {
       croak("Could not clone HList object");
     }
-
-    int j, k;
 
     /* Clone the SVs into new ones */
     for (j = 0; j < old_list->ulen; ++j) {
@@ -47,28 +48,35 @@ SV* clone_from(pTHX_ SV* klass, SV* self, HList* old_list) {
     }
   }
 
-  SV** hlist_created = hv_store( new_hash, "hlist", strlen("hlist"), newSViv((IV)new_list), 0 );
-  if ( !hlist_created ) {
-    croak("Could not store value for 'hlist'. This should not happen.");
+  {
+    SV** hlist_created = hv_store( new_hash, "hlist", strlen("hlist"), newSViv((IV)new_list), 0 );
+    if ( !hlist_created ) {
+      croak("Could not store value for 'hlist'. This should not happen.");
+    }
   }
 
   GLOG(("=X= Will bless new object"));
-  SV* them = newRV_noinc( (SV*)new_hash );
+  {
+    SV* them = newRV_noinc( (SV*)new_hash );
 
-  SV* retval = 0;
-  if (klass) {
-    retval = sv_bless( them, gv_stashpv( SvPV_nolen(klass), 0 ) );
-  } else if (self) {
-    const char* klass_name = HvNAME(SvSTASH(SvRV(self)));
-    retval = sv_bless( them, gv_stashpv( klass_name, 0 ) );
-  } else {
-    croak("Could not determine proper class name to bless object.");
+    SV* retval = 0;
+    if (klass) {
+      retval = sv_bless( them, gv_stashpv( SvPV_nolen(klass), 0 ) );
+    } else if (self) {
+      const char* klass_name = HvNAME(SvSTASH(SvRV(self)));
+      retval = sv_bless( them, gv_stashpv( klass_name, 0 ) );
+    } else {
+      croak("Could not determine proper class name to bless object.");
+    }
+
+    return retval;
   }
-
-  return retval;
 }
 
 void set_value(pTHX_ HList* h, const char* ckey, SV* pval) {
+  SV *deref;
+  AV *array;
+
   if ( ! SvOK(pval) ) {
     GLOG(("=X= deleting [%s]", ckey));
     hlist_del( h, ckey );
@@ -80,13 +88,13 @@ void set_value(pTHX_ HList* h, const char* ckey, SV* pval) {
     return;
   }
 
-  SV* deref = SvRV(pval);
+  deref = SvRV(pval);
   if (SvTYPE(deref) != SVt_PVAV) {
     set_scalar( aTHX, h, ckey, pval);
     return;
   }
 
-  AV* array = (AV*) deref;
+  array = (AV*) deref;
   set_array(aTHX, h, ckey, array);
 }
 
@@ -99,21 +107,22 @@ void set_array(pTHX_ HList* h, const char* ckey, AV* pval) {
   int count = av_len(pval) + 1;
   int j;
   for (j = 0; j < count; ++j) {
-    GLOG(("=X= set array %2d [%s]", j, ckey));
     SV** svp = av_fetch(pval, j, 0);
+    GLOG(("=X= set array %2d [%s]", j, ckey));
     set_value(aTHX, h, ckey, *svp);
   }
 }
 
 void return_hlist(pTHX_ HList* list, const char* func, int want) {
   dSP;
+  int count;
 
   if (want == G_VOID) {
     GLOG(("=X= %s: no return expected, nothing will be returned", func));
     return;
   }
 
-  int count = hlist_size(list);
+  count = hlist_size(list);
 
   if (want == G_SCALAR) {
     GLOG(("=X= %s: returning number of elements", func));
@@ -128,16 +137,17 @@ void return_hlist(pTHX_ HList* list, const char* func, int want) {
   }
 
   if (want == G_ARRAY) {
+    int num = 0;
+    int j;
+
     GLOG(("=X= %s: returning as %d elements", func, count));
     EXTEND(SP, count);
 
-    int num = 0;
-    int j;
     for (j = 0; j < list->ulen; ++j) {
       HNode* node = &list->data[j];
+      const char* s = node->header->name;
       ++num;
 
-      const char* s = node->header->name;
       GLOG(("=X= %s: returning %2d - str [%s]", func, num, s));
       PUSHs(sv_2mortal(newSVpv(s, 0)));
     }
@@ -146,6 +156,7 @@ void return_hlist(pTHX_ HList* list, const char* func, int want) {
 }
 
 void return_plist(pTHX_ PList* list, const char* func, int want) {
+  int count;
   dSP;
 
   if (want == G_VOID) {
@@ -153,7 +164,7 @@ void return_plist(pTHX_ PList* list, const char* func, int want) {
     return;
   }
 
-  int count = plist_size(list);
+  count = plist_size(list);
 
   if (count <= 0) {
     if (want == G_ARRAY) {
@@ -187,46 +198,50 @@ void return_plist(pTHX_ PList* list, const char* func, int want) {
        */
 
       int size = 16;
-      for (int j = 0; j < list->ulen; ++j) {
+      int j;
+      for (j = 0; j < list->ulen; ++j) {
         PNode* node = &list->data[j];
         STRLEN len;
         SvPV( (SV*)node->ptr, len );  // We just need the lenght
         size += len + 2;
       }
 
-      char* rstr;
-      GMEM_NEW(rstr, char*, size);
-      int rpos = 0;
-      int num = 0;
-      for (int j = 0; j < list->ulen; ++j) {
-        PNode* node = &list->data[j];
-        ++num;
+      {
+        char* rstr;
+        int rpos = 0;
+        int num = 0;
+        int j;
+        GMEM_NEW(rstr, char*, size);
+        for (j = 0; j < list->ulen; ++j) {
+          PNode* node = &list->data[j];
+          ++num;
 
-        STRLEN len;
-        char* str = SvPV( (SV*)node->ptr, len );
-        GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
-        if (rpos > 0) {
-          rstr[rpos++] = ',';
-          rstr[rpos++] = ' ';
+          STRLEN len;
+          char* str = SvPV( (SV*)node->ptr, len );
+          GLOG(("=X= %s: returning %2d - str [%s]", func, num, str));
+          if (rpos > 0) {
+            rstr[rpos++] = ',';
+            rstr[rpos++] = ' ';
+          }
+
+          memcpy(rstr + rpos, str, len);
+          rpos += len;
         }
 
-        memcpy(rstr + rpos, str, len);
-        rpos += len;
+        rstr[rpos] = '\0';
+        PUSHs(sv_2mortal(newSVpv(rstr, rpos)));
+        GMEM_DEL(rstr, char*, size);
       }
-
-      rstr[rpos] = '\0';
-      PUSHs(sv_2mortal(newSVpv(rstr, rpos)));
-      GMEM_DEL(rstr, char*, size);
     }
 
     PUTBACK;
   }
 
   if (want == G_ARRAY) {
-    GLOG(("=X= %s: returning as %d elements", func, count));
-    EXTEND(SP, count);
     int num = 0;
     int j;
+    GLOG(("=X= %s: returning as %d elements", func, count));
+    EXTEND(SP, count);
     for (j = 0; j < list->ulen; ++j) {
       PNode* node = &list->data[j];
       ++num;
@@ -239,18 +254,21 @@ void return_plist(pTHX_ PList* list, const char* func, int want) {
 }
 
 char* format_all(pTHX_ HList* h, int sort, const char* endl, int* size) {
+  int le = strlen(endl);
+  int j;
+  *size = 64;
+
   if (sort) {
     hlist_sort(h);
   }
 
-  *size = 64;
-  int le = strlen(endl);
-  for (int j = 0; j < h->ulen; ++j) {
+  for (j = 0; j < h->ulen; ++j) {
     HNode* hn = &h->data[j];
     const char* header = hn->header->name;
     int lh = strlen(header);
     PList* pl = hn->values;
-    for (int k = 0; k < pl->ulen; ++k) {
+    int k;
+    for (k = 0; k < pl->ulen; ++k) {
       PNode* pn = &pl->data[k];
       const char* value = SvPV_nolen( (SV*) pn->ptr );
       int lv = strlen(value);
@@ -258,28 +276,34 @@ char* format_all(pTHX_ HList* h, int sort, const char* endl, int* size) {
     }
   }
 
-  char* rstr;
-  GMEM_NEW(rstr, char*, *size);
-  int rpos = 0;
-  for (int j = 0; j < h->ulen; ++j) {
-    HNode* hn = &h->data[j];
-    const char* header = hn->header->name;
-    int lh = strlen(header);
-    PList* pl = hn->values;
-    for (int k = 0; k < pl->ulen; ++k) {
-      memcpy(rstr + rpos, header, lh);
-      rpos += lh;
-      rstr[rpos++] = ':';
-      rstr[rpos++] = ' ';
+  {
+    char* rstr;
+    int rpos = 0;
+    GMEM_NEW(rstr, char*, *size);
+    for (j = 0; j < h->ulen; ++j) {
+      HNode* hn = &h->data[j];
+      const char* header = hn->header->name;
+      int lh = strlen(header);
+      PList* pl = hn->values;
+      int k;
+      PNode *pn;
+      const char *value;
+      for (k = 0; k < pl->ulen; ++k) {
+        memcpy(rstr + rpos, header, lh);
+        rpos += lh;
+        rstr[rpos++] = ':';
+        rstr[rpos++] = ' ';
 
-      PNode* pn = &pl->data[k];
-      const char* value = SvPV_nolen( (SV*) pn->ptr );
-      rpos += string_cleanup(value, rstr + rpos, *size - rpos, endl);
+        pn = &pl->data[k];
+        value = SvPV_nolen( (SV*) pn->ptr );
+        rpos += string_cleanup(value, rstr + rpos, *size - rpos, endl);
+      }
     }
+
+    rstr[rpos] = '\0';
+    GLOG(("=X= format_all (%d/%d) [%s]", rpos, *size, rstr));
+    return rstr;
   }
-  rstr[rpos] = '\0';
-  GLOG(("=X= format_all (%d/%d) [%s]", rpos, *size, rstr));
-  return rstr;
 }
 
 static int string_append(char* buf, int pos, const char* str) {
