@@ -6,6 +6,16 @@
 #include "gmem.h"
 #include "header.h"
 
+#define HEADER_IS_CLASS(h, v) (h->order >= v && h->order < (v+100))
+
+#define HEADER_IS_GENERAL(h)  HEADER_IS_CLASS(h, HEADER_TYPE_GENERAL)
+#define HEADER_IS_REQUEST(h)  HEADER_IS_CLASS(h, HEADER_TYPE_REQUEST)
+#define HEADER_IS_RESPONSE(h) HEADER_IS_CLASS(h, HEADER_TYPE_RESPONSE)
+#define HEADER_IS_ENTITY(h)   HEADER_IS_CLASS(h, HEADER_TYPE_ENTITY)
+
+/*
+ * List of all standard headers, with the correct ordering for them.
+ */
 static Header standard_headers[] = {
   // general headers
   { 100, "Cache-Control"       },

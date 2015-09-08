@@ -11,18 +11,11 @@
  * standard headers.
  */
 
-#define HEADER_TYPE_NONE     999
+#define HEADER_TYPE_NONE     999 // should be greater than all other types
 #define HEADER_TYPE_GENERAL  100
 #define HEADER_TYPE_REQUEST  200
 #define HEADER_TYPE_RESPONSE 300
 #define HEADER_TYPE_ENTITY   400
-
-#define HEADER_IS_CLASS(h, v) (h->order >= v && h->order < (v+100))
-
-#define HEADER_IS_GENERAL(h)  HEADER_IS_CLASS(h, HEADER_TYPE_GENERAL)
-#define HEADER_IS_REQUEST(h)  HEADER_IS_CLASS(h, HEADER_TYPE_REQUEST)
-#define HEADER_IS_RESPONSE(h) HEADER_IS_CLASS(h, HEADER_TYPE_RESPONSE)
-#define HEADER_IS_ENTITY(h)   HEADER_IS_CLASS(h, HEADER_TYPE_ENTITY)
 
 typedef struct Header {
   int order;   // the order / grouping of the header
