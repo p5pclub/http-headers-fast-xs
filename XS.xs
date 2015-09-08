@@ -429,7 +429,7 @@ as_string_without_sort(SV* self, ...)
 
 
 void
-scan(SV* self, SV* sub)
+scan(SV* self, CV* sub)
   PREINIT:
     HList* hl = 0;
     int    j;
@@ -456,7 +456,7 @@ scan(SV* self, SV* sub)
         PUSHs( pheader );
         PUSHs( value );
         PUTBACK;
-        call_sv( sub, G_DISCARD );
+        call_sv( (SV *)sub, G_DISCARD );
 
         FREETMPS;
         LEAVE;
