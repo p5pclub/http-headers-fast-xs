@@ -74,7 +74,7 @@ void handle_standard_case(pTHX_ char *field, int len) {
     *standard_case_val = newSVpv( orig, len );
 }
 
-SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
+SV *get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     SV **h;
 
     /* check if field has a value */
@@ -85,28 +85,35 @@ SV* get_header_value(pTHX_ HV *self, char *field, STRLEN len) {
     if (h == NULL)
         croak("hv_fetch() failed. This should not happen.");
 
-    if ( SvROK(*h) )
-        return *h;
-    else
-        return newSVsv(*h);
+    return newSVsv(*h);
 }
 
-void set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
-    SV **val_0;
+SV *set_header_value(pTHX_ HV *self, char *field, int len, SV *val) {
+    SV *old_val, **val_0;
 
-    /* if array has a single element, then store that element instead of the array */
-    if (SvROK(val) &&
-        !sv_isobject(val) &&
-        SvTYPE(SvRV(val)) == SVt_PVAV &&
-        av_len((AV *) SvRV(val)) == 0)
-    {
-        val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
-        if (val_0 == NULL)
-            croak("av_fetch() failed. This should not happen.");
+    old_val = get_header_value(aTHX_ self, field, len);
 
-        val = *val_0;
+    if ( SvOK(val) ) {
+        /* if array has a single element, then store that element instead of the array */
+        if ( SvROK(val)                    &&
+             !sv_isobject(val)             &&
+             SvTYPE(SvRV(val)) == SVt_PVAV &&
+             av_len((AV *) SvRV(val)) == 0 )
+        {
+            val_0 = av_fetch( (AV *)SvRV(val), 0, 0 );
+            if (val_0 == NULL)
+                croak("av_fetch() failed. This should not happen.");
+
+            val = *val_0;
+        }
+        hv_store(self, field, len, newSVsv(val), 0);
     }
-    hv_store(self, field, len, newSVsv(val), 0);
+    else if (old_val != NULL) {
+        /* delete only if there is something to delete */
+        hv_delete(self, field, len, G_DISCARD);
+    }
+
+    return old_val;
 }
 
 void push_header_value(pTHX_  HV *self, char *field, STRLEN len, SV *val) {
@@ -155,18 +162,18 @@ int put_array_values_on_perl_stack(pTHX_ AV *array) {
         if (array_elem == NULL)
             croak("av_fetch() failed. This should not happen.");
 
-        PUSHs(sv_2mortal(newSVsv(*array_elem)));
+        if (SvROK(*array_elem))
+            PUSHs(sv_2mortal(*array_elem));
+        else
+            PUSHs(sv_2mortal(newSVsv(*array_elem)));
     }
     return count;
 }
 
 /* Returns if we store that field name or not */
-int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
+int put_value_on_perl_stack(pTHX_ SV *value) {
     dSP;
     int count;
-    SV  *value;
-
-    value = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
 
     if (value == NULL)
         return 0;
@@ -177,7 +184,7 @@ int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
         count = put_array_values_on_perl_stack((AV *) SvRV(value));
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
-        PUSHs(sv_2mortal(newSVsv(value)));
+        PUSHs(sv_2mortal(value));
         count = 1;
     }
     return count;
@@ -271,14 +278,7 @@ header(SV *self, ...)
             /* @old = $self->_header_set(@_) */
             field = SvPV(ST(1), len);
             handle_standard_case(aTHX_ field, len);
-            value = get_header_value(aTHX_ self_hash, field, len);
-
-            if ( SvOK(ST(2)) )
-                set_header_value(aTHX_ self_hash, field, len, ST(2));
-            else if (value != NULL)
-                /* delete only if there is something to delete */
-                hv_delete(self_hash, field, len, G_DISCARD);
-
+            value = set_header_value(aTHX_ self_hash, field, len, ST(2));
         } else {
             /* save the args from the stack since _header_push()
              * might overwrite them with results */
@@ -294,13 +294,7 @@ header(SV *self, ...)
                     hv_store(seen, field, len, newSViv(1), 0);
 
                     /* @old = $self->_header_set($field, shift) */
-                    value = get_header_value(aTHX_ self_hash, field, len);
-                    if ( SvOK(args[arg + 1]) )
-                        set_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
-                    else if (value != NULL)
-                        /* delete only if there is something to delete */
-                        hv_delete(self_hash, field, len, G_DISCARD);
-
+                    value = set_header_value(aTHX_ self_hash, field, len, args[arg + 1]);
                 } else {
                     /* @old = $self->_header_push($field, shift) */
                     value = get_header_value(aTHX_ self_hash, field, len);
@@ -336,7 +330,7 @@ header(SV *self, ...)
             }
         } else {
             /* return $old[0] */
-            PUSHs(sv_2mortal(newSVsv(value)));
+            PUSHs(sv_2mortal(value));
             XSRETURN(1);
         }
 
@@ -345,7 +339,9 @@ _header_get( SV *self, SV *field_name, ... )
     PREINIT:
         bool   skip_standardize;
         char   *field;
+        int    count;
         STRLEN len;
+        SV     *value;
     PPCODE:
         field = SvPV(field_name, len);
 
@@ -355,8 +351,11 @@ _header_get( SV *self, SV *field_name, ... )
 
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
+        value = get_header_value(aTHX_ (HV *)SvRV(self), field, len);
+        count = put_value_on_perl_stack(aTHX_ value);
+        SPAGAIN;
 
-        XSRETURN( put_header_value_on_perl_stack(aTHX_ self, field, len) );
+        XSRETURN(count);
 
 void
 _header_set(SV *self, SV *field_name, SV *val)
@@ -364,23 +363,16 @@ _header_set(SV *self, SV *field_name, SV *val)
         char   *field;
         int    count;
         STRLEN len;
+        SV     *value;
     PPCODE:
         field = SvPV(field_name, len);
-
         handle_standard_case(aTHX_ field, len);
 
         /* we are putting the decremented(with the number of input parameters) SP back in the THX */
         PUTBACK;
-
-        count = put_header_value_on_perl_stack(aTHX_ self, field, len);
-
+        value = set_header_value(aTHX_ (HV *)SvRV(self), field, len, val);
+        count = put_value_on_perl_stack(aTHX_ value);
         /* we are setting the local SP variable to the value in THX */
         SPAGAIN;
-
-        if ( SvOK(val) )
-            set_header_value(aTHX_ (HV *)SvRV(self), field, len, val);
-        else if (count)
-            /* delete only if there is something to delete */
-            hv_delete((HV *) SvRV(self), field, len, G_DISCARD);
 
         XSRETURN(count);
