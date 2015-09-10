@@ -12,7 +12,7 @@ WriteMakefile(
     },
     AUTHOR         => 'Gonzalo Diethelm (gonzus@cpan.org)',
     LIBS           => [''],
-#    DEFINE         => '-DGMEM_CHECK',
+    DEFINE         => '-DGMEM_CHECK',
 #    DEFINE         => '-DGLOG_SHOW',
 #    DEFINE         => '-DGMEM_CHECK -DGLOG_SHOW',
     INC            => '-I.',
@@ -26,7 +26,13 @@ sub cflags {
     my $cflags = $self->SUPER::cflags(@_);
     my @cflags = split /\n/, $cflags;
 
-    $self->{CCFLAGS} .= ' -Wall';
+    $self->{CCFLAGS} .= ' -Wall';     # Flag all warnings
+    $self->{CCFLAGS} .= ' -std=c99';  # Compile according to C99 standard
+    $self->{CCFLAGS} .= ' -pedantic'; # Be pedantic about warnings - no GNU extensions
+
+    # These warnings show up in internal XSUB code, so just shut them up.
+    $self->{CCFLAGS} .= ' -Wno-gnu-statement-expression';
+
     foreach (@cflags) {
         $_ = "CCFLAGS = $self->{CCFLAGS}" if /^CCFLAGS/;
     }
