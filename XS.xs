@@ -5,6 +5,7 @@
 #include "ppport.h"
 
 #include <string.h>
+#include <time.h>
 
 #define MY_CXT_KEY "HTTP::Headers::Fast::XS::_guts" XS_VERSION
 
@@ -376,3 +377,41 @@ _header_set(SV *self, SV *field_name, SV *val)
         SPAGAIN;
 
         XSRETURN(count);
+
+int
+_date_header(SV *self, SV *header, ...)
+    PREINIT:
+        char   *field, tmstr[30];
+        struct tm time;
+        time_t seconds;
+        STRLEN len;
+        SV     *old_val, *value;
+    CODE:
+        /* $header should already be standardized */
+        field = SvPV(header, len);
+
+        if (items > 2) {
+            /* ($old) = $self->_header_set( $header, time2str($time) ) */
+            value = ST(2);
+            if ( SvOK(value) ) {
+                seconds = SvIV(ST(2));
+                strftime(tmstr, 30, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&seconds));
+                value = newSVpv(tmstr, 29);
+            }
+            old_val = set_header_value(aTHX_ (HV *) SvRV(self), field, len, value);
+        } else {
+            /* ($old) = $self->_header_get($header, 1) */
+            old_val = get_header_value(aTHX_ (HV *) SvRV(self), field, len);
+        }
+
+        /* TODO: $old =~ s/;.+// if defined($old) */
+
+        /* HTTP::Date::str2time($old) */
+        if (old_val == NULL) {
+            XSRETURN_UNDEF;
+        } else {
+            strptime(SvPV_nolen(old_val), "%a, %d %b %Y %H:%M:%S %Z", &time);
+            RETVAL = (int) mktime(&time);
+        }
+    OUTPUT:
+        RETVAL
