@@ -174,7 +174,7 @@ int put_header_value_on_perl_stack(pTHX_ SV *self, char *field, STRLEN len) {
     if (SvROK(value) && (SvTYPE(SvRV(value)) == SVt_PVAV) && !sv_isobject(value)) {
         /* If the value is an array, put all the values of the array on stack.
          * This will return @$h to perl */
-        count = put_array_values_on_perl_stack((AV *) SvRV(value));
+        count = put_array_values_on_perl_stack(aTHX_ (AV *) SvRV(value));
     } else {
         /* If we have one value, just put it on stack. This will return ($h) to perl */
         PUSHs(sv_2mortal(newSVsv(value)));
@@ -322,7 +322,7 @@ header(SV *self, ...)
             if (GIMME_V == G_ARRAY) {
                 /* return @old */
                 PUTBACK;
-                count = put_array_values_on_perl_stack((AV *) SvRV(value));
+                count = put_array_values_on_perl_stack(aTHX_ (AV *) SvRV(value));
                 SPAGAIN;
 
                 XSRETURN(count);
