@@ -62,7 +62,7 @@ void handle_standard_case(pTHX_ char *field, int len) {
         return;
 
     /* uc first char after word boundary */
-    word_boundary = true;
+    word_boundary = TRUE;
     for (i = 0; i < len; i++ ) {
         if (word_boundary) {
             orig[i] = toupper( orig[i] );
