@@ -8,7 +8,7 @@ WriteMakefile(
         'Test::More'          => 0,
         'Exporter'            => '5.57',
         'XSLoader'            => 0,
-        'HTTP::Headers::Fast' => '0.19',
+        'HTTP::Headers::Fast' => '0.20',
     },
     AUTHOR         => [
         'Sawyer X (xsawyerx@cpan.org)',
